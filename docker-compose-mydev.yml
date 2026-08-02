@@ -1,0 +1,69 @@
+# New-API Docker Compose Configuration
+# 
+# Quick Start:
+#   1. docker-compose up -d
+#   2. Access at http://localhost:3000
+#
+# Using MySQL instead of PostgreSQL:
+#   1. Comment out the postgres service and SQL_DSN line 15
+#   2. Uncomment the mysql service and SQL_DSN line 16
+#   3. Uncomment mysql in depends_on (line 28)
+#   4. Uncomment mysql_data in volumes section (line 64)
+#
+# ⚠️  IMPORTANT: Change all default passwords before deploying to production!
+
+version: '3.4' # For compatibility with older Docker versions
+
+services:
+  # This local stack only starts Redis and PostgreSQL. Configure the new-api
+  # application process/container with both values below:
+  # SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+  # PLATFORM_DATABASE_URL=postgresql://root:123456@postgres:5432/platform_db?sslmode=disable
+  # The platform extension creates platform_db on its first API access.
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: always
+    command: ["redis-server", "--requirepass", "123456"]  # ⚠️ IMPORTANT: Change this password in production!
+    # networks:
+    #   - new-api-network
+    ports:
+      - "6379:6379"                  # 映射到宿主机端口
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
+      POSTGRES_DB: new-api
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"  # Uncomment if you need to access PostgreSQL from outside Docker
+    # networks:
+      # - new-api-network
+
+  platform-db-init:
+    image: postgres:15
+    container_name: platform-db-init
+    restart: "no"
+    depends_on:
+      - postgres
+    environment:
+      PGPASSWORD: 123456
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        until pg_isready -h postgres -U root; do sleep 1; done
+        psql -h postgres -U root -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'platform_db'" | grep -q 1 || psql -h postgres -U root -d postgres -c 'CREATE DATABASE platform_db'
+    
+
+volumes:
+  pg_data:
+
+# networks:
+#   new-api-network:
+#     driver: bridge

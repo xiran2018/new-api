@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { useStatus } from '@/hooks/use-status'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 import { useAuthStore } from '@/stores/auth-store'
+import { usePlatformPublicTopNavLinks } from '@/platform/navigation/platform-nav'
 
 export type TopNavLink = {
   title: string
@@ -47,6 +48,7 @@ export function useTopNavLinks(): TopNavLink[] {
   const { t } = useTranslation()
   const { status } = useStatus()
   const { auth } = useAuthStore()
+  const platformLinks = usePlatformPublicTopNavLinks()
 
   // Parse HeaderNavModules
   const modules = useMemo(() => {
@@ -99,6 +101,8 @@ export function useTopNavLinks(): TopNavLink[] {
   if (modules?.about !== false) {
     links.push({ title: t('About'), href: '/about' })
   }
+
+  links.push(...platformLinks)
 
   return links
 }

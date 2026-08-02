@@ -8,12 +8,14 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/platform"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetRouter(router *gin.Engine, assets WebAssets) {
 	SetApiRouter(router)
+	platform.RegisterRoutes(router.Group("/api"))
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
 	SetVideoRouter(router)
