@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>LLMAPI</title>
+    <!-- The document is served at / while its independently maintained assets
+         are published below /home/. Keep these URLs absolute. -->
+    <link rel="stylesheet" href="/home/styles.css" />
+  </head>
+  <body>
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="orb orb-one"></div><div class="orb orb-two"></div>
+        <nav class="home-nav" aria-label="Homepage navigation">
+          <a class="brand" href="/" target="_top" aria-label="LLMAPI home"><span class="brand-mark">◈</span>LLMAPI</a>
+          <div class="nav-actions"><a href="/dashboard" target="_top" data-i18n="console">控制台</a><a href="/pricing" target="_top" data-i18n="models">模型广场</a><a href="/rankings" target="_top" data-i18n="rankings">排行榜</a><a href="/docs" target="_top" data-i18n="docs">文档</a><a href="/about" target="_top" data-i18n="about">关于</a><a href="/faq" target="_top" data-i18n="faq">常见问答</a><a href="/updates" target="_top" data-i18n="updates">更新日志</a><a class="nav-login" href="/login" target="_top" data-i18n="start">立即开始</a></div>
+        </nav>
+        <div class="hero-content">
+          <p class="eyebrow" data-i18n="eyebrow">一个接口，连接所有主流 AI 模型</p>
+          <h1 id="hero-title" data-i18n="headline">让每一次智能调用，都简单可靠</h1>
+          <p class="hero-copy" data-i18n="description">LLMAPI 为团队与开发者提供统一、稳定、安全的 AI 模型服务。专注产品创新，其余交给我们。</p>
+          <div class="hero-actions"><a class="button primary" href="/register" target="_top" data-i18n="start">立即开始</a><a class="button secondary" href="/docs" target="_top" data-i18n="docs">阅读文档</a></div>
+          <div class="trust-row"><span>OpenAI</span><span>Claude</span><span>Gemini</span><span>DeepSeek</span><span>Qwen</span></div>
+        </div>
+        <div class="terminal-card" aria-label="API example"><div class="terminal-bar"><i></i><i></i><i></i><span>API Request</span></div><pre><code><em>POST</em> /v1/chat/completions
+Authorization: Bearer <b>llmapi-key</b>
+
+{ "model": "gpt-4o", "messages": [...] }</code></pre><div class="terminal-result"><span>✓</span> <span data-i18n="ready">请求已准备就绪</span></div></div>
+      </section>
+
+      <section class="metrics" aria-label="Platform metrics"><div><strong>99.9%</strong><span data-i18n="availability">服务可用性</span></div><div><strong>40+</strong><span data-i18n="providers">主流模型提供商</span></div><div><strong>&lt; 100ms</strong><span data-i18n="latency">低延迟接入体验</span></div><div><strong>24 / 7</strong><span data-i18n="support">持续稳定服务</span></div></section>
+
+      <section class="section capabilities" aria-labelledby="capabilities-title"><div class="section-heading"><p data-i18n="capabilityEyebrow">为生产环境而生</p><h2 id="capabilities-title" data-i18n="capabilityTitle">一个平台，承载完整的 AI 工作流</h2><span data-i18n="capabilityText">从模型选择到调用分析，用更少的复杂度获得更好的体验。</span></div><div class="feature-grid"><article><span class="feature-icon">⌘</span><h3 data-i18n="featureOne">统一 API</h3><p data-i18n="featureOneText">使用熟悉的接口，在多个模型与供应商之间自由切换。</p></article><article><span class="feature-icon">◌</span><h3 data-i18n="featureTwo">稳定可靠</h3><p data-i18n="featureTwoText">智能调度与故障切换，保障关键业务持续可用。</p></article><article><span class="feature-icon">▦</span><h3 data-i18n="featureThree">清晰可控</h3><p data-i18n="featureThreeText">从用量、费用到模型表现，每一笔调用都有据可查。</p></article></div></section>
+
+      <section class="section model-showcase" aria-labelledby="models-title"><div class="section-heading compact"><p data-i18n="modelEyebrow">不断扩展的能力边界</p><h2 id="models-title" data-i18n="modelTitle">选择适合你的模型</h2></div><div class="carousel" aria-roledescription="carousel"><button class="carousel-control previous" aria-label="Previous slide">‹</button><div class="slides"><article class="model-card active"><span class="model-logo openai">✦</span><p>OpenAI</p><h3>GPT-4o</h3><span data-i18n="modelFast">快速、全能的多模态能力</span></article><article class="model-card"><span class="model-logo claude">✺</span><p>Anthropic</p><h3>Claude</h3><span data-i18n="modelReasoning">长文本与复杂推理</span></article><article class="model-card"><span class="model-logo gemini">✧</span><p>Google</p><h3>Gemini</h3><span data-i18n="modelNative">原生多模态与高效执行</span></article></div><button class="carousel-control next" aria-label="Next slide">›</button></div><div class="dots" aria-label="Carousel controls"><button class="active" aria-label="Slide 1"></button><button aria-label="Slide 2"></button><button aria-label="Slide 3"></button></div></section>
+
+      <section class="section callout"><div><p data-i18n="calloutEyebrow">现在开始构建</p><h2 data-i18n="calloutTitle">把精力留给真正重要的产品。</h2><p data-i18n="calloutText">创建账号，几分钟内开始调用你需要的 AI 模型。</p></div><a class="button primary" href="/register" target="_top" data-i18n="createAccount">创建免费账号</a></section>
+    </main>
+    <footer><span>© <span id="year"></span> LLMAPI</span><div><a href="/faq" target="_top" data-i18n="faq">常见问答</a><a href="/about" target="_top" data-i18n="about">关于我们</a></div></footer>
+    <script src="/home/app.js"></script>
+  </body>
+</html>

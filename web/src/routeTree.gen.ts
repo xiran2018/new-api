@@ -56,6 +56,7 @@ import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedPlatformContentIndexRouteImport } from './routes/_authenticated/platform/content/index'
+import { Route as AuthenticatedPlatformFaqManagementIndexRouteImport } from './routes/_authenticated/platform/faq-management/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
 import { Route as AuthenticatedSystemSettingsAuthSectionRouteImport } from './routes/_authenticated/system-settings/auth/$section'
 import { Route as AuthenticatedSystemSettingsBillingIndexRouteImport } from './routes/_authenticated/system-settings/billing/index'
@@ -321,6 +322,12 @@ const AuthenticatedPlatformContentIndexRoute =
     path: '/platform/content/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPlatformFaqManagementIndexRoute =
+  AuthenticatedPlatformFaqManagementIndexRouteImport.update({
+    id: '/platform/faq-management/',
+    path: '/platform/faq-management/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSystemSettingsAuthIndexRoute =
   AuthenticatedSystemSettingsAuthIndexRouteImport.update({
     id: '/auth/',
@@ -459,6 +466,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/platform/content/': typeof AuthenticatedPlatformContentIndexRoute
+  '/platform/faq-management/': typeof AuthenticatedPlatformFaqManagementIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -519,6 +527,7 @@ export interface FileRoutesByTo {
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/platform/content': typeof AuthenticatedPlatformContentIndexRoute
+  '/platform/faq-management': typeof AuthenticatedPlatformFaqManagementIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -583,6 +592,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/_authenticated/platform/content/': typeof AuthenticatedPlatformContentIndexRoute
+  '/_authenticated/platform/faq-management/': typeof AuthenticatedPlatformFaqManagementIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/_authenticated/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/_authenticated/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -646,6 +656,7 @@ export interface FileRouteTypes {
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
     | '/platform/content/'
+    | '/platform/faq-management/'
     | '/system-settings/auth/'
     | '/system-settings/billing/'
     | '/system-settings/content/'
@@ -706,6 +717,7 @@ export interface FileRouteTypes {
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
     | '/platform/content'
+    | '/platform/faq-management'
     | '/system-settings/auth'
     | '/system-settings/billing'
     | '/system-settings/content'
@@ -769,6 +781,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/security/$section'
     | '/_authenticated/system-settings/site/$section'
     | '/_authenticated/platform/content/'
+    | '/_authenticated/platform/faq-management/'
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
     | '/_authenticated/system-settings/content/'
@@ -1130,6 +1143,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlatformContentIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/platform/faq-management/': {
+      id: '/_authenticated/platform/faq-management/'
+      path: '/platform/faq-management'
+      fullPath: '/platform/faq-management/'
+      preLoaderRoute: typeof AuthenticatedPlatformFaqManagementIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/system-settings/auth/': {
       id: '/_authenticated/system-settings/auth/'
       path: '/auth'
@@ -1335,6 +1355,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
   AuthenticatedPlatformContentIndexRoute: typeof AuthenticatedPlatformContentIndexRoute
+  AuthenticatedPlatformFaqManagementIndexRoute: typeof AuthenticatedPlatformFaqManagementIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1361,6 +1382,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
   AuthenticatedPlatformContentIndexRoute:
     AuthenticatedPlatformContentIndexRoute,
+  AuthenticatedPlatformFaqManagementIndexRoute:
+    AuthenticatedPlatformFaqManagementIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

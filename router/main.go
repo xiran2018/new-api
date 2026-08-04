@@ -19,6 +19,12 @@ func SetRouter(router *gin.Engine, assets WebAssets) {
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
 	SetVideoRouter(router)
+	// Serve the independently maintained marketing landing page directly at
+	// the root, avoiding a same-origin iframe recursion through HomePageContent.
+	router.GET("/", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-cache")
+		c.Data(http.StatusOK, "text/html; charset=utf-8", assets.LandingPage)
+	})
 	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
 	if common.IsMasterNode && frontendBaseUrl != "" {
 		frontendBaseUrl = ""
