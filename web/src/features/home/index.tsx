@@ -58,14 +58,6 @@ export function Home() {
     }
   }, [isUrl, syncIframePreferences])
 
-  useEffect(() => {
-    if (isLoaded) {
-      // SPA navigation to / does not hit the server's landing-page route.
-      // Reload once so the independently maintained homepage is returned.
-      window.location.assign('/')
-    }
-  }, [isLoaded])
-
   if (!isLoaded) {
     return (
       <PublicLayout showMainContainer={false}>

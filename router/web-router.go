@@ -15,9 +15,8 @@ import (
 
 // WebAssets holds the embedded dashboard frontend assets.
 type WebAssets struct {
-	BuildFS     embed.FS
-	IndexPage   []byte
-	LandingPage []byte
+	BuildFS   embed.FS
+	IndexPage []byte
 }
 
 func SetWebRouter(router *gin.Engine, assets WebAssets) {
@@ -26,16 +25,7 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
-	serveFrontend := static.Serve("/", frontendFS)
-	router.Use(func(c *gin.Context) {
-		// The root route is the platform landing page. Let its explicit handler
-		// run instead of allowing the SPA static middleware to return index.html.
-		if c.Request.URL.Path == "/" {
-			c.Next()
-			return
-		}
-		serveFrontend(c)
-	})
+	router.Use(static.Serve("/", frontendFS))
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
 		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
