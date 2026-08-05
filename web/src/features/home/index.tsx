@@ -58,6 +58,15 @@ export function Home() {
     }
   }, [isUrl, syncIframePreferences])
 
+  useEffect(() => {
+    if (isLoaded) {
+      // A client-side navigation to / is handled by the React SPA and would
+      // otherwise render the upstream home. Reload once so the outer platform
+      // gateway can serve the independently maintained landing page.
+      window.location.replace('/')
+    }
+  }, [isLoaded])
+
   if (!isLoaded) {
     return (
       <PublicLayout showMainContainer={false}>
