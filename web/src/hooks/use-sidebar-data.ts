@@ -38,7 +38,7 @@ import { useTranslation } from 'react-i18next'
 
 import { type SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
-import { platformAdminNav } from '@/platform/navigation/platform-nav'
+import { platformAdminNav, platformUserNav } from '@/platform/navigation/platform-nav'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -109,6 +109,11 @@ export function useSidebarData(): SidebarData {
             url: '/wallet',
             icon: Wallet,
           },
+          ...platformUserNav.map((item) => ({
+            title: t(item.title),
+            url: item.href,
+            icon: FileText,
+          })),
           {
             title: t('Profile'),
             url: '/profile',
