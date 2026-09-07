@@ -24,6 +24,7 @@ import {
   InputGroupInput,
 } from '@/components/ui/input-group'
 import { cn } from '@/lib/utils'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 
 import {
   SettingsControlGroup,
@@ -35,19 +36,48 @@ export function PriceInput(props: {
   placeholder?: string
   disabled?: boolean
   onChange: (value: string) => void
+  vendorPriceUSD?: number
 }) {
+  const { t } = useTranslation()
+  const entered = Number(props.value)
+  const difference =
+    props.vendorPriceUSD != null && Number.isFinite(entered)
+      ? entered - props.vendorPriceUSD
+      : undefined
   return (
-    <InputGroup>
-      <InputGroupAddon>$</InputGroupAddon>
-      <InputGroupInput
-        inputMode='decimal'
-        value={props.value}
-        placeholder={props.placeholder}
-        disabled={props.disabled}
-        onChange={(event) => props.onChange(event.target.value)}
-      />
-      <InputGroupAddon align='inline-end'>$/1M</InputGroupAddon>
-    </InputGroup>
+    <div className='flex flex-col gap-1.5 lg:flex-row lg:items-center'>
+      <InputGroup className='min-w-0 flex-1'>
+        <InputGroupAddon>$</InputGroupAddon>
+        <InputGroupInput
+          inputMode='decimal'
+          value={props.value}
+          placeholder={props.placeholder}
+          disabled={props.disabled}
+          onChange={(event) => props.onChange(event.target.value)}
+        />
+        <InputGroupAddon align='inline-end'>$/1M</InputGroupAddon>
+      </InputGroup>
+      {props.vendorPriceUSD != null && (
+        <div className='shrink-0 text-xs text-muted-foreground'>
+          {t('Vendor price')}: {formatBillingCurrencyFromUSD(props.vendorPriceUSD)}
+          {difference != null && (
+            <span
+              className={cn(
+                'ml-2 font-medium',
+                difference > 0
+                  ? 'text-rose-500'
+                  : difference < 0
+                    ? 'text-emerald-500'
+                    : 'text-muted-foreground'
+              )}
+            >
+              {t('Difference')}: {difference > 0 ? '+' : ''}
+              {formatBillingCurrencyFromUSD(difference)}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -60,6 +90,7 @@ export function PriceLane(props: {
   disabled?: boolean
   onEnabledChange: (checked: boolean) => void
   onChange: (value: string) => void
+  vendorPriceUSD?: number
 }) {
   const { t } = useTranslation()
   const effectiveDisabled = props.disabled || !props.enabled
@@ -82,6 +113,7 @@ export function PriceLane(props: {
         placeholder={props.placeholder}
         disabled={effectiveDisabled}
         onChange={props.onChange}
+        vendorPriceUSD={props.vendorPriceUSD}
       />
       <p className='text-muted-foreground text-xs'>
         {props.enabled

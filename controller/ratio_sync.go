@@ -43,6 +43,8 @@ const (
 	modelsDevHost               = "models.dev"
 	modelsDevPath               = "/api.json"
 	modelsDevInputCostRatioBase = 1000.0
+	pricingSourceProviderField  = "_source_provider"
+	pricingSourceURLField       = "_source_url"
 )
 
 func nearlyEqual(a, b float64) bool {
@@ -195,12 +197,28 @@ func effectivePricingSyncData(data map[string]any) map[string]any {
 			}
 		}
 	}
+	for _, field := range []string{pricingSourceProviderField, pricingSourceURLField} {
+		entries := make(map[string]any)
+		for name, value := range valueMap(data[field]) {
+			if _, hasRatio := valueMap(result["model_ratio"])[name]; hasRatio {
+				entries[name] = value
+			}
+		}
+		result[field] = entries
+	}
 	return result
 }
 
 func modelPricingSyncValues(data map[string]any, name string) map[string]any {
 	values := make(map[string]any)
 	for _, field := range pricingSyncFields {
+		if value, exists := valueMap(data[field])[name]; exists {
+			values[field] = value
+		}
+	}
+	// Provenance is display-only metadata. It is deliberately excluded from
+	// pricingSyncFields so it can never be written into runtime billing options.
+	for _, field := range []string{pricingSourceProviderField, pricingSourceURLField} {
 		if value, exists := valueMap(data[field])[name]; exists {
 			values[field] = value
 		}
@@ -1070,8 +1088,12 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 	modelRatioMap := make(map[string]any)
 	completionRatioMap := make(map[string]any)
 	cacheRatioMap := make(map[string]any)
+	providerMap := make(map[string]any)
+	sourceURLMap := make(map[string]any)
 
 	for modelName, candidate := range selectedCandidates {
+		providerMap[modelName] = candidate.Provider
+		sourceURLMap[modelName] = modelsDevPresetBaseURL + modelsDevPath
 		if candidate.Input == 0 {
 			modelRatioMap[modelName] = 0.0
 			continue
@@ -1101,6 +1123,8 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 	if len(cacheRatioMap) > 0 {
 		converted["cache_ratio"] = cacheRatioMap
 	}
+	converted[pricingSourceProviderField] = providerMap
+	converted[pricingSourceURLField] = sourceURLMap
 	return converted, nil
 }
 

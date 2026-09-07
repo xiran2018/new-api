@@ -69,6 +69,7 @@ import {
 } from '@/features/pricing/lib/task-expr'
 import type { BillingUsageSchema } from '@/features/pricing/types'
 import { cn } from '@/lib/utils'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 
 import {
   EMPTY_LANE_ENABLED,
@@ -101,6 +102,7 @@ type ModelPricingSheetProps = {
   isSaving?: boolean
   usageSchema?: BillingUsageSchema
   onDirtyChange?: (dirty: boolean) => void
+  priceComparison?: Partial<Record<'input' | LaneKey | 'request', number>>
 }
 
 type ModelPricingEditorPanelProps = Omit<
@@ -128,6 +130,7 @@ export const ModelPricingSheet = forwardRef<
     isSaving,
     usageSchema,
     onDirtyChange,
+    priceComparison,
   },
   ref
 ) {
@@ -152,6 +155,7 @@ export const ModelPricingSheet = forwardRef<
           onDirtyChange={onDirtyChange}
           onSave={onSave}
           isSaving={isSaving}
+          priceComparison={priceComparison}
           className='h-full rounded-none border-0'
         />
       </SheetContent>
@@ -163,7 +167,7 @@ export const ModelPricingEditorPanel = forwardRef<
   ModelPricingEditorPanelHandle,
   ModelPricingEditorPanelProps
 >(function ModelPricingEditorPanel(
-  { editData, className, onSave, isSaving, usageSchema, onDirtyChange },
+  { editData, className, onSave, isSaving, usageSchema, onDirtyChange, priceComparison },
   ref
 ) {
   const { t } = useTranslation()
@@ -703,6 +707,7 @@ export const ModelPricingEditorPanel = forwardRef<
                           value={promptPrice}
                           placeholder='3'
                           onChange={handlePromptPriceChange}
+                          vendorPriceUSD={priceComparison?.input}
                         />
                         <FieldDescription>
                           {t('USD price per 1M input tokens.')}
@@ -730,6 +735,7 @@ export const ModelPricingEditorPanel = forwardRef<
                               onChange={(value) =>
                                 handleLanePriceChange(lane.key, value)
                               }
+                              vendorPriceUSD={priceComparison?.[lane.key]}
                             />
                           )
                         })}
@@ -765,6 +771,41 @@ export const ModelPricingEditorPanel = forwardRef<
                                   </InputGroupAddon>
                                 </InputGroup>
                               </FormControl>
+                              {priceComparison?.request != null && (
+                                <div className='text-muted-foreground text-xs'>
+                                  {t('Vendor price')}:{' '}
+                                  {formatBillingCurrencyFromUSD(
+                                    priceComparison.request
+                                  )}
+                                  {Number.isFinite(Number(field.value)) && (
+                                    <span
+                                      className={cn(
+                                        'ml-2 font-medium',
+                                        Number(field.value) -
+                                          priceComparison.request >
+                                          0
+                                          ? 'text-rose-500'
+                                          : Number(field.value) -
+                                                priceComparison.request <
+                                              0
+                                            ? 'text-emerald-500'
+                                            : 'text-muted-foreground'
+                                      )}
+                                    >
+                                      {t('Difference')}:{' '}
+                                      {Number(field.value) -
+                                        priceComparison.request >
+                                      0
+                                        ? '+'
+                                        : ''}
+                                      {formatBillingCurrencyFromUSD(
+                                        Number(field.value) -
+                                          priceComparison.request
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               <FieldDescription>
                                 {t(
                                   'Cost in USD per request, regardless of tokens used.'
