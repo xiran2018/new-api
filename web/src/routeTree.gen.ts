@@ -30,6 +30,7 @@ import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authentica
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as FaqIndexRouteImport } from './routes/faq/index'
+import { Route as ModelPricesIndexRouteImport } from './routes/model-prices/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as PricingIndexRouteImport } from './routes/pricing/index'
 import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
@@ -60,6 +61,7 @@ import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenti
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedPlatformContentIndexRouteImport } from './routes/_authenticated/platform/content/index'
 import { Route as AuthenticatedPlatformFaqManagementIndexRouteImport } from './routes/_authenticated/platform/faq-management/index'
+import { Route as AuthenticatedPlatformModelPricesIndexRouteImport } from './routes/_authenticated/platform/model-prices/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
 import { Route as AuthenticatedSystemSettingsAuthSectionRouteImport } from './routes/_authenticated/system-settings/auth/$section'
 import { Route as AuthenticatedSystemSettingsBillingIndexRouteImport } from './routes/_authenticated/system-settings/billing/index'
@@ -177,6 +179,11 @@ const AboutIndexRoute = AboutIndexRouteImport.update({
 const FaqIndexRoute = FaqIndexRouteImport.update({
   id: '/faq/',
   path: '/faq/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelPricesIndexRoute = ModelPricesIndexRouteImport.update({
+  id: '/model-prices/',
+  path: '/model-prices/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthProviderRoute = OauthProviderRouteImport.update({
@@ -349,6 +356,12 @@ const AuthenticatedPlatformFaqManagementIndexRoute =
     path: '/platform/faq-management/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPlatformModelPricesIndexRoute =
+  AuthenticatedPlatformModelPricesIndexRouteImport.update({
+    id: '/platform/model-prices/',
+    path: '/platform/model-prices/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSystemSettingsAuthIndexRoute =
   AuthenticatedSystemSettingsAuthIndexRouteImport.update({
     id: '/auth/',
@@ -455,6 +468,7 @@ export interface FileRoutesByFullPath {
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/faq/': typeof FaqIndexRoute
+  '/model-prices/': typeof ModelPricesIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
@@ -491,6 +505,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/platform/content/': typeof AuthenticatedPlatformContentIndexRoute
   '/platform/faq-management/': typeof AuthenticatedPlatformFaqManagementIndexRoute
+  '/platform/model-prices/': typeof AuthenticatedPlatformModelPricesIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -519,6 +534,7 @@ export interface FileRoutesByTo {
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
   '/faq': typeof FaqIndexRoute
+  '/model-prices': typeof ModelPricesIndexRoute
   '/pricing': typeof PricingIndexRoute
   '/rankings': typeof RankingsIndexRoute
   '/setup': typeof SetupIndexRoute
@@ -555,6 +571,7 @@ export interface FileRoutesByTo {
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/platform/content': typeof AuthenticatedPlatformContentIndexRoute
   '/platform/faq-management': typeof AuthenticatedPlatformFaqManagementIndexRoute
+  '/platform/model-prices': typeof AuthenticatedPlatformModelPricesIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -587,6 +604,7 @@ export interface FileRoutesById {
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/faq/': typeof FaqIndexRoute
+  '/model-prices/': typeof ModelPricesIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
@@ -623,6 +641,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/_authenticated/platform/content/': typeof AuthenticatedPlatformContentIndexRoute
   '/_authenticated/platform/faq-management/': typeof AuthenticatedPlatformFaqManagementIndexRoute
+  '/_authenticated/platform/model-prices/': typeof AuthenticatedPlatformModelPricesIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/_authenticated/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/_authenticated/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -654,6 +673,7 @@ export interface FileRouteTypes {
     | '/oauth/$provider'
     | '/about/'
     | '/faq/'
+    | '/model-prices/'
     | '/pricing/'
     | '/rankings/'
     | '/setup/'
@@ -690,6 +710,7 @@ export interface FileRouteTypes {
     | '/system-settings/site/$section'
     | '/platform/content/'
     | '/platform/faq-management/'
+    | '/platform/model-prices/'
     | '/system-settings/auth/'
     | '/system-settings/billing/'
     | '/system-settings/content/'
@@ -718,6 +739,7 @@ export interface FileRouteTypes {
     | '/oauth/$provider'
     | '/about'
     | '/faq'
+    | '/model-prices'
     | '/pricing'
     | '/rankings'
     | '/setup'
@@ -754,6 +776,7 @@ export interface FileRouteTypes {
     | '/system-settings/site/$section'
     | '/platform/content'
     | '/platform/faq-management'
+    | '/platform/model-prices'
     | '/system-settings/auth'
     | '/system-settings/billing'
     | '/system-settings/content'
@@ -785,6 +808,7 @@ export interface FileRouteTypes {
     | '/oauth/$provider'
     | '/about/'
     | '/faq/'
+    | '/model-prices/'
     | '/pricing/'
     | '/rankings/'
     | '/setup/'
@@ -821,6 +845,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/site/$section'
     | '/_authenticated/platform/content/'
     | '/_authenticated/platform/faq-management/'
+    | '/_authenticated/platform/model-prices/'
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
     | '/_authenticated/system-settings/content/'
@@ -844,6 +869,7 @@ export interface RootRouteChildren {
   OauthProviderRoute: typeof OauthProviderRoute
   AboutIndexRoute: typeof AboutIndexRoute
   FaqIndexRoute: typeof FaqIndexRoute
+  ModelPricesIndexRoute: typeof ModelPricesIndexRoute
   PricingIndexRoute: typeof PricingIndexRoute
   RankingsIndexRoute: typeof RankingsIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
@@ -998,6 +1024,13 @@ declare module '@tanstack/react-router' {
       path: '/faq'
       fullPath: '/faq/'
       preLoaderRoute: typeof FaqIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/model-prices/': {
+      id: '/model-prices/'
+      path: '/model-prices'
+      fullPath: '/model-prices/'
+      preLoaderRoute: typeof ModelPricesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/$provider': {
@@ -1210,6 +1243,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlatformFaqManagementIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/platform/model-prices/': {
+      id: '/_authenticated/platform/model-prices/'
+      path: '/platform/model-prices'
+      fullPath: '/platform/model-prices/'
+      preLoaderRoute: typeof AuthenticatedPlatformModelPricesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/system-settings/auth/': {
       id: '/_authenticated/system-settings/auth/'
       path: '/auth'
@@ -1419,6 +1459,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
   AuthenticatedPlatformContentIndexRoute: typeof AuthenticatedPlatformContentIndexRoute
   AuthenticatedPlatformFaqManagementIndexRoute: typeof AuthenticatedPlatformFaqManagementIndexRoute
+  AuthenticatedPlatformModelPricesIndexRoute: typeof AuthenticatedPlatformModelPricesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1451,6 +1492,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedPlatformContentIndexRoute,
   AuthenticatedPlatformFaqManagementIndexRoute:
     AuthenticatedPlatformFaqManagementIndexRoute,
+  AuthenticatedPlatformModelPricesIndexRoute:
+    AuthenticatedPlatformModelPricesIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -1470,6 +1513,7 @@ const rootRouteChildren: RootRouteChildren = {
   OauthProviderRoute: OauthProviderRoute,
   AboutIndexRoute: AboutIndexRoute,
   FaqIndexRoute: FaqIndexRoute,
+  ModelPricesIndexRoute: ModelPricesIndexRoute,
   PricingIndexRoute: PricingIndexRoute,
   RankingsIndexRoute: RankingsIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
