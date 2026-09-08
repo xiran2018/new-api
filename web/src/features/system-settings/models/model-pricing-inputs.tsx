@@ -37,12 +37,13 @@ export function PriceInput(props: {
   disabled?: boolean
   onChange: (value: string) => void
   vendorPriceUSD?: number
+  priceMultiplier?: number
 }) {
   const { t } = useTranslation()
   const entered = Number(props.value)
   const difference =
     props.vendorPriceUSD != null && Number.isFinite(entered)
-      ? entered - props.vendorPriceUSD
+      ? entered * (props.priceMultiplier ?? 1) - props.vendorPriceUSD
       : undefined
   return (
     <div className='flex flex-col gap-1.5 lg:flex-row lg:items-center'>
@@ -91,6 +92,7 @@ export function PriceLane(props: {
   onEnabledChange: (checked: boolean) => void
   onChange: (value: string) => void
   vendorPriceUSD?: number
+  priceMultiplier?: number
 }) {
   const { t } = useTranslation()
   const effectiveDisabled = props.disabled || !props.enabled
@@ -114,6 +116,7 @@ export function PriceLane(props: {
         disabled={effectiveDisabled}
         onChange={props.onChange}
         vendorPriceUSD={props.vendorPriceUSD}
+        priceMultiplier={props.priceMultiplier}
       />
       <p className='text-muted-foreground text-xs'>
         {props.enabled

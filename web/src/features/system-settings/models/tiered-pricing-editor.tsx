@@ -94,6 +94,7 @@ import {
   tryParseVisualConfig,
 } from '@/features/pricing/lib/tier-expr'
 import { cn } from '@/lib/utils'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 
 const PRICE_SUFFIX = '$/1M tokens'
 const CACHE_PRICE_VARS = BILLING_EXTRA_VARS.filter(
@@ -510,9 +511,14 @@ type PriceFieldProps = {
   hint?: string
   value: number
   onChange: (next: number) => void
+  vendorPrice?: number
+  priceMultiplier?: number
 }
 
-function PriceField({ label, hint, value, onChange }: PriceFieldProps) {
+function PriceField({ label, hint, value, onChange, vendorPrice, priceMultiplier = 1 }: PriceFieldProps) {
+  const { t } = useTranslation()
+  const actualPrice = value * priceMultiplier
+  const difference = vendorPrice == null ? undefined : actualPrice - vendorPrice
   return (
     <div className='w-36 space-y-0.5'>
       <Label className='text-muted-foreground text-xs'>{label}</Label>
@@ -523,6 +529,14 @@ function PriceField({ label, hint, value, onChange }: PriceFieldProps) {
         onValueChange={onChange}
         className='h-8 w-full'
       />
+      {vendorPrice != null && (
+        <p className='text-muted-foreground text-xs'>
+          {t('Vendor price')}: {formatBillingCurrencyFromUSD(vendorPrice)}
+          <span className={cn('ml-1 font-medium', difference! > 0 ? 'text-rose-500' : difference! < 0 ? 'text-emerald-500' : 'text-muted-foreground')}>
+            {t('Difference')}: {difference! > 0 ? '+' : ''}{formatBillingCurrencyFromUSD(difference!)}
+          </span>
+        </p>
+      )}
       {hint && <p className='text-muted-foreground text-xs'>{hint}</p>}
     </div>
   )
@@ -539,6 +553,8 @@ type VisualTierCardProps = {
   onChange: (next: VisualTier) => void
   onRemove: () => void
   onAddCondition: () => void
+  comparisonTier?: VisualTier
+  priceMultiplier?: number
 }
 
 function VisualTierCard({
@@ -548,6 +564,8 @@ function VisualTierCard({
   onChange,
   onRemove,
   onAddCondition,
+  comparisonTier,
+  priceMultiplier = 1,
 }: VisualTierCardProps) {
   const { t } = useTranslation()
   const cacheMode = getTierCacheMode(tier)
@@ -605,6 +623,8 @@ function VisualTierCard({
         label={t(variable.label)}
         value={value}
         onChange={(next) => handlePriceChange(fieldKey, priceToUnitCost(next))}
+        vendorPrice={comparisonTier ? unitCostToPrice((comparisonTier[fieldKey] as number | undefined) ?? 0) : undefined}
+        priceMultiplier={priceMultiplier}
       />
     )
   }
@@ -686,6 +706,8 @@ function VisualTierCard({
               onChange={(value) =>
                 handlePriceChange('input_unit_cost', priceToUnitCost(value))
               }
+              vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.input_unit_cost) : undefined}
+              priceMultiplier={priceMultiplier}
             />
             <PriceField
               label={t('Output price')}
@@ -693,6 +715,8 @@ function VisualTierCard({
               onChange={(value) =>
                 handlePriceChange('output_unit_cost', priceToUnitCost(value))
               }
+              vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.output_unit_cost) : undefined}
+              priceMultiplier={priceMultiplier}
             />
           </div>
 
@@ -766,9 +790,11 @@ function VisualTierCard({
 type VisualEditorProps = {
   visualConfig: VisualConfig | null
   onChange: (next: VisualConfig) => void
+  comparisonConfig?: VisualConfig | null
+  priceMultiplier?: number
 }
 
-function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
+function VisualEditor({ visualConfig, onChange, comparisonConfig, priceMultiplier }: VisualEditorProps) {
   const { t } = useTranslation()
   const config = useMemo(
     () => normalizeVisualConfig(visualConfig),
@@ -850,6 +876,11 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
           onChange={(next) => handleTierChange(index, next)}
           onRemove={() => handleRemoveTier(index)}
           onAddCondition={() => handleAddCondition(index)}
+          comparisonTier={
+            comparisonConfig?.tiers.find((candidate) => candidate.label === tier.label) ??
+            comparisonConfig?.tiers[index]
+          }
+          priceMultiplier={priceMultiplier}
         />
       ))}
       <Button
@@ -1340,9 +1371,11 @@ function PresetSection({ applyPreset }: PresetSectionProps) {
 
 type EstimatorProps = {
   effectiveExpr: string
+  comparisonExpr?: string
+  priceMultiplier?: number
 }
 
-function CostEstimator({ effectiveExpr }: EstimatorProps) {
+function CostEstimator({ effectiveExpr, comparisonExpr, priceMultiplier = 1 }: EstimatorProps) {
   const { t } = useTranslation()
   const [promptTokens, setPromptTokens] = useState(0)
   const [completionTokens, setCompletionTokens] = useState(0)
@@ -1366,6 +1399,16 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
       evalExprLocally(effectiveExpr, promptTokens, completionTokens, extras),
     [effectiveExpr, promptTokens, completionTokens, extras]
   )
+  const comparisonResult = useMemo(
+    () => comparisonExpr
+      ? evalExprLocally(comparisonExpr, promptTokens, completionTokens, extras)
+      : null,
+    [comparisonExpr, promptTokens, completionTokens, extras]
+  )
+  const discountedCost = result.cost * priceMultiplier
+  const costDifference = comparisonResult && !comparisonResult.error
+    ? discountedCost - comparisonResult.cost
+    : undefined
 
   return (
     <div className='bg-muted/30 space-y-3 rounded-md border p-3'>
@@ -1439,8 +1482,18 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
         ) : (
           <div className='flex items-center gap-2'>
             <span className='font-medium'>
-              {t('Estimated quota cost')}: {result.cost.toLocaleString()}
+              {t('Estimated quota cost')}: {discountedCost.toLocaleString()}
             </span>
+            {comparisonResult && !comparisonResult.error && (
+              <span className='text-muted-foreground text-xs'>
+                {t('Vendor price')}: {comparisonResult.cost.toLocaleString()}
+                {costDifference != null && (
+                  <span className={cn('ml-2 font-medium', costDifference > 0 ? 'text-rose-500' : costDifference < 0 ? 'text-emerald-500' : 'text-muted-foreground')}>
+                    {t('Difference')}: {costDifference > 0 ? '+' : ''}{costDifference.toLocaleString()}
+                  </span>
+                )}
+              </span>
+            )}
             {result.matchedTier && (
               <Badge variant='outline' className='text-xs'>
                 {t('Hit tier')}: {result.matchedTier}
@@ -1611,6 +1664,8 @@ export type TieredPricingEditorProps = {
   requestRuleExpr: string
   onBillingExprChange: (next: string) => void
   onRequestRuleExprChange: (next: string) => void
+  comparisonExpr?: string
+  priceMultiplier?: number
 }
 
 type EditorMode = 'visual' | 'raw'
@@ -1621,6 +1676,8 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
   requestRuleExpr: currentRequestRuleExpr,
   onBillingExprChange,
   onRequestRuleExprChange,
+  comparisonExpr,
+  priceMultiplier = 1,
 }: TieredPricingEditorProps) {
   const { t } = useTranslation()
   const [editorMode, setEditorMode] = useState<EditorMode>('visual')
@@ -1671,6 +1728,10 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
     const { billingExpr } = splitBillingExprAndRequestRules(rawExpr)
     return billingExpr
   }, [editorMode, visualConfig, rawExpr])
+  const comparisonConfig = useMemo(
+    () => tryParseVisualConfig(comparisonExpr),
+    [comparisonExpr]
+  )
 
   useEffect(() => {
     if (effectiveExpr !== currentExpr) {
@@ -1791,6 +1852,8 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
           <VisualEditor
             visualConfig={visualConfig}
             onChange={handleVisualChange}
+            comparisonConfig={comparisonConfig}
+            priceMultiplier={priceMultiplier}
           />
         ) : (
           <RawExprEditor exprString={rawExpr} onChange={handleRawChange} />
@@ -1856,7 +1919,11 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
         )}
       </div>
 
-      <CostEstimator effectiveExpr={effectiveExpr} />
+      <CostEstimator
+        effectiveExpr={effectiveExpr}
+        comparisonExpr={comparisonExpr}
+        priceMultiplier={priceMultiplier}
+      />
     </div>
   )
 })

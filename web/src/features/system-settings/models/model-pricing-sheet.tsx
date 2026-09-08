@@ -103,6 +103,8 @@ type ModelPricingSheetProps = {
   usageSchema?: BillingUsageSchema
   onDirtyChange?: (dirty: boolean) => void
   priceComparison?: Partial<Record<'input' | LaneKey | 'request', number>>
+  priceMultiplier?: number
+  expressionComparison?: string
 }
 
 type ModelPricingEditorPanelProps = Omit<
@@ -118,6 +120,20 @@ export type ModelPricingEditorPanelHandle = {
 
 const DEFAULT_TOKEN_BILLING_EXPR = 'tier("base", p * 0 + c * 0)'
 
+const previewComparisonKeys: Record<
+  string,
+  'input' | LaneKey | 'request'
+> = {
+  inputPrice: 'input',
+  completion: 'completion',
+  cache: 'cache',
+  createCache: 'createCache',
+  image: 'image',
+  audio: 'audioInput',
+  audioCompletion: 'audioOutput',
+  price: 'request',
+}
+
 export const ModelPricingSheet = forwardRef<
   ModelPricingEditorPanelHandle,
   ModelPricingSheetProps
@@ -131,6 +147,8 @@ export const ModelPricingSheet = forwardRef<
     usageSchema,
     onDirtyChange,
     priceComparison,
+    priceMultiplier,
+    expressionComparison,
   },
   ref
 ) {
@@ -156,6 +174,8 @@ export const ModelPricingSheet = forwardRef<
           onSave={onSave}
           isSaving={isSaving}
           priceComparison={priceComparison}
+          priceMultiplier={priceMultiplier}
+          expressionComparison={expressionComparison}
           className='h-full rounded-none border-0'
         />
       </SheetContent>
@@ -167,7 +187,7 @@ export const ModelPricingEditorPanel = forwardRef<
   ModelPricingEditorPanelHandle,
   ModelPricingEditorPanelProps
 >(function ModelPricingEditorPanel(
-  { editData, className, onSave, isSaving, usageSchema, onDirtyChange, priceComparison },
+  { editData, className, onSave, isSaving, usageSchema, onDirtyChange, priceComparison, priceMultiplier = 1, expressionComparison },
   ref
 ) {
   const { t } = useTranslation()
@@ -708,6 +728,7 @@ export const ModelPricingEditorPanel = forwardRef<
                           placeholder='3'
                           onChange={handlePromptPriceChange}
                           vendorPriceUSD={priceComparison?.input}
+                          priceMultiplier={priceMultiplier}
                         />
                         <FieldDescription>
                           {t('USD price per 1M input tokens.')}
@@ -736,6 +757,7 @@ export const ModelPricingEditorPanel = forwardRef<
                                 handleLanePriceChange(lane.key, value)
                               }
                               vendorPriceUSD={priceComparison?.[lane.key]}
+                              priceMultiplier={priceMultiplier}
                             />
                           )
                         })}
@@ -781,11 +803,11 @@ export const ModelPricingEditorPanel = forwardRef<
                                     <span
                                       className={cn(
                                         'ml-2 font-medium',
-                                        Number(field.value) -
+                                        Number(field.value) * priceMultiplier -
                                           priceComparison.request >
                                           0
                                           ? 'text-rose-500'
-                                          : Number(field.value) -
+                                          : Number(field.value) * priceMultiplier -
                                                 priceComparison.request <
                                               0
                                             ? 'text-emerald-500'
@@ -793,13 +815,13 @@ export const ModelPricingEditorPanel = forwardRef<
                                       )}
                                     >
                                       {t('Difference')}:{' '}
-                                      {Number(field.value) -
+                                      {Number(field.value) * priceMultiplier -
                                         priceComparison.request >
                                       0
                                         ? '+'
                                         : ''}
                                       {formatBillingCurrencyFromUSD(
-                                        Number(field.value) -
+                                        Number(field.value) * priceMultiplier -
                                           priceComparison.request
                                       )}
                                     </span>
@@ -839,6 +861,8 @@ export const ModelPricingEditorPanel = forwardRef<
                           requestRuleExpr={requestRuleExpr}
                           onBillingExprChange={setBillingExpr}
                           onRequestRuleExprChange={setRequestRuleExpr}
+                          comparisonExpr={expressionComparison}
+                          priceMultiplier={priceMultiplier}
                         />
                       )}
                     </FieldGroup>
@@ -851,8 +875,15 @@ export const ModelPricingEditorPanel = forwardRef<
                   <div className='text-sm font-medium'>{t('Preview')}</div>
                 </div>
                 <div className='divide-y'>
-                  {previewRows.map((row) => (
-                    <div key={row.key} className='grid gap-1 px-3 py-2.5'>
+                  {previewRows.map((row) => {
+                    const raw = Number(row.value.replace(/^\$/, ''))
+                    const discounted = raw * priceMultiplier
+                    const comparison = priceComparison?.[previewComparisonKeys[row.key]]
+                    const difference =
+                      Number.isFinite(discounted) && comparison != null
+                        ? discounted - comparison
+                        : undefined
+                    return <div key={row.key} className='grid gap-1 px-3 py-2.5'>
                       <span className='text-muted-foreground text-xs'>
                         {row.label}
                       </span>
@@ -864,10 +895,27 @@ export const ModelPricingEditorPanel = forwardRef<
                             : 'truncate'
                         )}
                       >
-                        {row.value}
+                        {Number.isFinite(discounted) && !row.multiline
+                          ? `$${formatPricingNumber(discounted)}`
+                          : row.value}
+                        {difference != null && (
+                          <small
+                            className={cn(
+                              'ml-2 font-medium',
+                              difference > 0
+                                ? 'text-rose-500'
+                                : difference < 0
+                                  ? 'text-emerald-500'
+                                  : 'text-muted-foreground'
+                            )}
+                          >
+                            {t('Difference')}: {difference > 0 ? '+' : ''}
+                            {formatBillingCurrencyFromUSD(difference)}
+                          </small>
+                        )}
                       </span>
                     </div>
-                  ))}
+                  })}
                 </div>
               </aside>
             </div>

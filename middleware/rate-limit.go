@@ -178,6 +178,21 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// AuthRefreshRateLimit keeps session recovery independent from login and
+// verification attempts. It remains IP-limited, but ordinary authentication
+// traffic cannot exhaust the refresh bucket and force active users to sign in
+// again after a browser reload.
+func AuthRefreshRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		limit := common.CriticalRateLimitNum * 6
+		if limit < 60 {
+			limit = 60
+		}
+		return rateLimitFactory(limit, common.CriticalRateLimitDuration, "AR")
+	}
+	return defNext
+}
+
 func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	if !common.CriticalRateLimitEnable {
 		return defNext
