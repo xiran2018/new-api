@@ -513,22 +513,35 @@ type PriceFieldProps = {
   onChange: (next: number) => void
   vendorPrice?: number
   priceMultiplier?: number
+  cnyExchangeRate?: number
 }
 
-function PriceField({ label, hint, value, onChange, vendorPrice, priceMultiplier = 1 }: PriceFieldProps) {
+function PriceField({ label, hint, value, onChange, vendorPrice, priceMultiplier = 1, cnyExchangeRate }: PriceFieldProps) {
   const { t } = useTranslation()
   const actualPrice = value * priceMultiplier
   const difference = vendorPrice == null ? undefined : actualPrice - vendorPrice
   return (
-    <div className='w-36 space-y-0.5'>
+    <div className={cn(cnyExchangeRate != null ? 'w-64' : 'w-36', 'space-y-0.5')}>
       <Label className='text-muted-foreground text-xs'>{label}</Label>
-      <DraftNumberInput
-        min={0}
-        step={0.000001}
-        value={Number.isFinite(value) ? value : 0}
-        onValueChange={onChange}
-        className='h-8 w-full'
-      />
+      <div className='flex items-center gap-2'>
+        <DraftNumberInput
+          min={0}
+          step={0.000001}
+          value={Number.isFinite(value) ? value : 0}
+          onValueChange={onChange}
+          className='h-8 min-w-0 flex-1'
+        />
+        {cnyExchangeRate != null && cnyExchangeRate > 0 && (
+          <p className='text-foreground/75 shrink-0 whitespace-nowrap text-xs font-medium'>
+            {t('Approximate CNY')}: {new Intl.NumberFormat('zh-CN', {
+              style: 'currency',
+              currency: 'CNY',
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 6,
+            }).format(value * cnyExchangeRate)}
+          </p>
+        )}
+      </div>
       {vendorPrice != null && (
         <p className='text-muted-foreground text-xs'>
           {t('Vendor price')}: {formatBillingCurrencyFromUSD(vendorPrice)}
@@ -555,6 +568,7 @@ type VisualTierCardProps = {
   onAddCondition: () => void
   comparisonTier?: VisualTier
   priceMultiplier?: number
+  cnyExchangeRate?: number
 }
 
 function VisualTierCard({
@@ -566,6 +580,7 @@ function VisualTierCard({
   onAddCondition,
   comparisonTier,
   priceMultiplier = 1,
+  cnyExchangeRate,
 }: VisualTierCardProps) {
   const { t } = useTranslation()
   const cacheMode = getTierCacheMode(tier)
@@ -625,6 +640,7 @@ function VisualTierCard({
         onChange={(next) => handlePriceChange(fieldKey, priceToUnitCost(next))}
         vendorPrice={comparisonTier ? unitCostToPrice((comparisonTier[fieldKey] as number | undefined) ?? 0) : undefined}
         priceMultiplier={priceMultiplier}
+        cnyExchangeRate={cnyExchangeRate}
       />
     )
   }
@@ -708,6 +724,7 @@ function VisualTierCard({
               }
               vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.input_unit_cost) : undefined}
               priceMultiplier={priceMultiplier}
+              cnyExchangeRate={cnyExchangeRate}
             />
             <PriceField
               label={t('Output price')}
@@ -717,6 +734,7 @@ function VisualTierCard({
               }
               vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.output_unit_cost) : undefined}
               priceMultiplier={priceMultiplier}
+              cnyExchangeRate={cnyExchangeRate}
             />
           </div>
 
@@ -792,9 +810,10 @@ type VisualEditorProps = {
   onChange: (next: VisualConfig) => void
   comparisonConfig?: VisualConfig | null
   priceMultiplier?: number
+  cnyExchangeRate?: number
 }
 
-function VisualEditor({ visualConfig, onChange, comparisonConfig, priceMultiplier }: VisualEditorProps) {
+function VisualEditor({ visualConfig, onChange, comparisonConfig, priceMultiplier, cnyExchangeRate }: VisualEditorProps) {
   const { t } = useTranslation()
   const config = useMemo(
     () => normalizeVisualConfig(visualConfig),
@@ -881,6 +900,7 @@ function VisualEditor({ visualConfig, onChange, comparisonConfig, priceMultiplie
             comparisonConfig?.tiers[index]
           }
           priceMultiplier={priceMultiplier}
+          cnyExchangeRate={cnyExchangeRate}
         />
       ))}
       <Button
@@ -1666,6 +1686,7 @@ export type TieredPricingEditorProps = {
   onRequestRuleExprChange: (next: string) => void
   comparisonExpr?: string
   priceMultiplier?: number
+  cnyExchangeRate?: number
 }
 
 type EditorMode = 'visual' | 'raw'
@@ -1678,6 +1699,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
   onRequestRuleExprChange,
   comparisonExpr,
   priceMultiplier = 1,
+  cnyExchangeRate,
 }: TieredPricingEditorProps) {
   const { t } = useTranslation()
   const [editorMode, setEditorMode] = useState<EditorMode>('visual')
@@ -1854,6 +1876,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
             onChange={handleVisualChange}
             comparisonConfig={comparisonConfig}
             priceMultiplier={priceMultiplier}
+            cnyExchangeRate={cnyExchangeRate}
           />
         ) : (
           <RawExprEditor exprString={rawExpr} onChange={handleRawChange} />
