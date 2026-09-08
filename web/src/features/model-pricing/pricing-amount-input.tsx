@@ -21,7 +21,10 @@ import { useTranslation } from 'react-i18next'
 
 import { Input } from '@/components/ui/input'
 import { InputGroupInput } from '@/components/ui/input-group'
-import { formatPricingNumber } from '@/features/system-settings/models/pricing-format'
+import {
+  formatPricingDisplayNumber,
+  formatPricingNumber,
+} from '@/features/system-settings/models/pricing-format'
 
 import { USD_PRICING_CURRENCY, type PricingCurrency } from './currency'
 
@@ -56,11 +59,12 @@ export function PricingAmountInput({
   if (value !== '') {
     displayed = String(displayAmount)
     if (Number.isFinite(displayAmount)) {
-      displayed = Number(formatPricingNumber(displayAmount)).toLocaleString(
+      displayed = Number(formatPricingDisplayNumber(displayAmount)).toLocaleString(
         'en-US',
         {
           useGrouping: false,
-          maximumFractionDigits: 12,
+          minimumFractionDigits: 3,
+          maximumFractionDigits: 3,
         }
       )
     }

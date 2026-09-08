@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 const DISPLAY_DECIMALS = 12
+const PRICE_DISPLAY_DECIMALS = 3
 const SNAP_DECIMALS = 8
 const SNAP_EPSILON = 1e-12
 
@@ -58,4 +59,12 @@ export function formatPricingNumber(value: unknown): string {
 
   const normalized = snapFloatDrift(num)
   return Number.parseFloat(normalized.toFixed(DISPLAY_DECIMALS)).toString()
+}
+
+export function formatPricingDisplayNumber(value: unknown): string {
+  const num = toNumberOrNull(value)
+  if (num === null) return ''
+
+  const normalized = Math.abs(num) < 0.0005 ? 0 : num
+  return normalized.toFixed(PRICE_DISPLAY_DECIMALS)
 }
