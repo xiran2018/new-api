@@ -23,6 +23,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -49,11 +50,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from '@/components/ui/input-group'
+import { InputGroup, InputGroupAddon } from '@/components/ui/input-group'
 import {
   Sheet,
   SheetContent,
@@ -62,14 +59,24 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  formatPricingAmount,
+  getSitePricingCurrency,
+  isValidPricingCurrency,
+  USD_PRICING_CURRENCY,
+} from '@/features/model-pricing/currency'
+import { PricingAmountInput } from '@/features/model-pricing/pricing-amount-input'
+import { PricingCurrencySelector } from '@/features/model-pricing/pricing-currency-selector'
 import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import {
   createDefaultTaskVisualConfig,
   generateTaskExprFromConfig,
 } from '@/features/pricing/lib/task-expr'
 import type { BillingUsageSchema } from '@/features/pricing/types'
-import { cn } from '@/lib/utils'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { cn } from '@/lib/utils'
+import { usePricingPreferencesStore } from '@/stores/pricing-preferences-store'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import {
   EMPTY_LANE_ENABLED,
@@ -79,7 +86,6 @@ import {
   createModelPricingSchema,
   hasValue,
   laneConfigs,
-  numericDraftRegex,
   ratioFieldByLane,
   toNumberOrNull,
   type LaneKey,
@@ -112,6 +118,7 @@ type ModelPricingEditorPanelProps = Omit<
   'open' | 'onOpenChange'
 > & {
   className?: string
+  embedded?: boolean
 }
 
 export type ModelPricingEditorPanelHandle = {
@@ -120,10 +127,7 @@ export type ModelPricingEditorPanelHandle = {
 
 const DEFAULT_TOKEN_BILLING_EXPR = 'tier("base", p * 0 + c * 0)'
 
-const previewComparisonKeys: Record<
-  string,
-  'input' | LaneKey | 'request'
-> = {
+const previewComparisonKeys: Record<string, 'input' | LaneKey | 'request'> = {
   inputPrice: 'input',
   completion: 'completion',
   cache: 'cache',
@@ -187,10 +191,33 @@ export const ModelPricingEditorPanel = forwardRef<
   ModelPricingEditorPanelHandle,
   ModelPricingEditorPanelProps
 >(function ModelPricingEditorPanel(
-  { editData, className, onSave, isSaving, usageSchema, onDirtyChange, priceComparison, priceMultiplier = 1, expressionComparison },
+  {
+    editData,
+    className,
+    onSave,
+    isSaving,
+    usageSchema,
+    onDirtyChange,
+    embedded = false,
+    priceComparison,
+    priceMultiplier = 1,
+    expressionComparison,
+  },
   ref
 ) {
   const { t } = useTranslation()
+  const promptPriceId = useId()
+  const formElementRef = useRef<HTMLFormElement>(null)
+  const currencyConfig = useSystemConfigStore((state) => state.config.currency)
+  const preference = usePricingPreferencesStore((state) => state.currency)
+  const siteCurrency = useMemo(
+    () => getSitePricingCurrency(currencyConfig),
+    [currencyConfig]
+  )
+  const currency =
+    preference === 'site' && isValidPricingCurrency(siteCurrency)
+      ? siteCurrency
+      : USD_PRICING_CURRENCY
   const [pricingMode, setPricingMode] = useState<PricingMode>('per-token')
   const [promptPrice, setPromptPrice] = useState('')
   const [lanePrices, setLanePrices] = useState<Record<LaneKey, string>>({
@@ -397,13 +424,11 @@ export const ModelPricingEditorPanel = forwardRef<
   }
 
   const handlePromptPriceChange = (value: string) => {
-    if (!numericDraftRegex.test(value)) return
     setPromptPrice(value)
     syncLaneRatios(value, lanePrices, laneEnabled)
   }
 
   const handleLanePriceChange = (lane: LaneKey, value: string) => {
-    if (!numericDraftRegex.test(value)) return
     const nextLanePrices = { ...lanePrices, [lane]: value }
     setLanePrices(nextLanePrices)
 
@@ -470,7 +495,8 @@ export const ModelPricingEditorPanel = forwardRef<
         promptPrice,
         lanePrices,
         laneEnabled,
-        t
+        t,
+        currency
       ),
     [
       resolvedBillingExpr,
@@ -481,6 +507,7 @@ export const ModelPricingEditorPanel = forwardRef<
       requestRuleExpr,
       t,
       watchedValues,
+      currency,
     ]
   )
 
@@ -604,6 +631,13 @@ export const ModelPricingEditorPanel = forwardRef<
     ref,
     () => ({
       commitDraft: async () => {
+        const amounts =
+          formElementRef.current?.querySelectorAll<HTMLInputElement>(
+            'input[data-pricing-amount]'
+          )
+        if (amounts && [...amounts].some((input) => !input.reportValidity())) {
+          return null
+        }
         const isValid = await form.trigger()
         if (!isValid || !validatePricingValues()) return null
         return buildSubmitData(form.getValues())
@@ -617,29 +651,38 @@ export const ModelPricingEditorPanel = forwardRef<
   return (
     <div
       className={cn(
-        'bg-background flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border',
+        'bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border',
         className
       )}
     >
-      <div className='border-b p-4'>
-        <div className='flex flex-wrap items-start justify-between gap-3'>
-          <div className='min-w-0'>
-            <h3 className='truncate text-base font-medium'>
-              {isEditMode ? t('Edit model pricing') : t('Add model pricing')}
-            </h3>
+      {!embedded && (
+        <div className='border-b p-4'>
+          <div className='flex flex-wrap items-start justify-between gap-3'>
+            <div className='min-w-0'>
+              <h3 className='truncate text-base font-medium'>
+                {isEditMode ? t('Edit model pricing') : t('Add model pricing')}
+              </h3>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <Form {...form}>
         <form
+          ref={formElementRef}
           onSubmit={(event) => event.preventDefault()}
           className='flex min-h-0 flex-1 flex-col'
           autoComplete='off'
         >
-          <div className='min-h-0 flex-1 overflow-y-auto p-4 pb-6'>
-            <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(220px,260px)]'>
-              <FieldGroup>
+          <div
+            role='region'
+            aria-label={
+              isEditMode ? t('Edit model pricing') : t('Add model pricing')
+            }
+            className='@container/pricing-editor min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-6'
+          >
+            <div className='grid min-w-0 items-start gap-4 @min-[960px]/pricing-editor:grid-cols-[minmax(0,1fr)_260px]'>
+              <FieldGroup className='min-w-0'>
                 {warnings.length > 0 && (
                   <Alert variant='destructive'>
                     <AlertTriangle data-icon='inline-start' />
@@ -653,30 +696,35 @@ export const ModelPricingEditorPanel = forwardRef<
                   </Alert>
                 )}
 
-                <FormField
-                  control={form.control}
-                  name='name'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Model name')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder={t('gpt-4')}
-                          {...field}
-                          disabled={isEditMode}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t(
-                          'The exact model identifier as used in API requests.'
-                        )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {!embedded && (
+                  <FormField
+                    control={form.control}
+                    name='name'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Model name')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t('gpt-4')}
+                            {...field}
+                            disabled={isEditMode}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'The exact model identifier as used in API requests.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                <PricingCurrencySelector siteCurrency={siteCurrency} />
 
                 <Tabs
+                  key={editorReloadToken}
                   value={pricingMode}
                   onValueChange={handleModeChange}
                   className='gap-4'
@@ -693,7 +741,10 @@ export const ModelPricingEditorPanel = forwardRef<
                     </TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value='per-token' className='pt-0'>
+                  <TabsContent
+                    value='per-token'
+                    className='@container/pricing-fields min-w-0 pt-0'
+                  >
                     {taskUsageSchema &&
                       Object.keys(taskUsageSchema).length > 0 && (
                         <Alert className='mb-4'>
@@ -720,49 +771,84 @@ export const ModelPricingEditorPanel = forwardRef<
                           </AlertDescription>
                         </Alert>
                       )}
-                    <FieldGroup className='gap-5'>
-                      <Field>
-                        <FieldLabel>{t('Input price')}</FieldLabel>
+                    {embedded && (
+                      <p className='text-muted-foreground mb-3 text-xs'>
+                        {t('{{currency}} price per 1M tokens.', {
+                          currency: currency.label,
+                        })}{' '}
+                        {t('Disabled lanes are omitted on save.')}
+                      </p>
+                    )}
+                    <div
+                      className={cn(
+                        'grid min-w-0 gap-3',
+                        embedded && '@min-[560px]/pricing-fields:grid-cols-2'
+                      )}
+                    >
+                      <Field
+                        className={cn(
+                          'min-w-0',
+                          embedded && 'rounded-lg border p-3'
+                        )}
+                      >
+                        <FieldLabel htmlFor={promptPriceId}>
+                          {t('Input price')}
+                        </FieldLabel>
+                        <FieldDescription
+                          id={`${promptPriceId}-description`}
+                          className={embedded ? 'text-xs' : undefined}
+                        >
+                          {t('{{currency}} price per 1M input tokens.', {
+                            currency: currency.label,
+                          })}
+                        </FieldDescription>
                         <PriceInput
+                          currency={currency}
+                          id={promptPriceId}
+                          aria-describedby={`${promptPriceId}-description`}
                           value={promptPrice}
                           placeholder='3'
                           onChange={handlePromptPriceChange}
                           vendorPriceUSD={priceComparison?.input}
                           priceMultiplier={priceMultiplier}
                         />
-                        <FieldDescription>
-                          {t('USD price per 1M input tokens.')}
-                        </FieldDescription>
                       </Field>
 
-                      <div className='grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(400px,1fr))]'>
-                        {laneConfigs.map((lane) => {
-                          const disabled =
-                            lane.key === 'audioOutput' &&
-                            (!laneEnabled.audioInput ||
-                              !hasValue(lanePrices.audioInput))
-                          return (
-                            <PriceLane
-                              key={lane.key}
-                              title={t(lane.titleKey)}
-                              description={t(lane.descriptionKey)}
-                              placeholder={lane.placeholder}
-                              value={lanePrices[lane.key]}
-                              enabled={laneEnabled[lane.key]}
-                              disabled={disabled}
-                              onEnabledChange={(checked) =>
-                                handleLaneToggle(lane.key, checked)
-                              }
-                              onChange={(value) =>
-                                handleLanePriceChange(lane.key, value)
-                              }
-                              vendorPriceUSD={priceComparison?.[lane.key]}
-                              priceMultiplier={priceMultiplier}
-                            />
-                          )
-                        })}
-                      </div>
-                    </FieldGroup>
+                      {laneConfigs.map((lane) => {
+                        const disabled =
+                          lane.key === 'audioOutput' &&
+                          (!laneEnabled.audioInput ||
+                            !hasValue(lanePrices.audioInput))
+                        return (
+                          <PriceLane
+                            currency={currency}
+                            key={lane.key}
+                            compact={embedded}
+                            title={t(lane.titleKey)}
+                            description={t(lane.descriptionKey)}
+                            placeholder={lane.placeholder}
+                            value={lanePrices[lane.key]}
+                            enabled={laneEnabled[lane.key]}
+                            disabled={disabled}
+                            disabledReason={
+                              disabled
+                                ? t(
+                                    'Audio output price requires an audio input price.'
+                                  )
+                                : undefined
+                            }
+                            onEnabledChange={(checked) =>
+                              handleLaneToggle(lane.key, checked)
+                            }
+                            onChange={(value) =>
+                              handleLanePriceChange(lane.key, value)
+                            }
+                            vendorPriceUSD={priceComparison?.[lane.key]}
+                            priceMultiplier={priceMultiplier}
+                          />
+                        )
+                      })}
+                    </div>
                   </TabsContent>
 
                   <TabsContent value='per-request' className='pt-0'>
@@ -773,66 +859,44 @@ export const ModelPricingEditorPanel = forwardRef<
                         render={({ field }) => (
                           <FormItem className='contents'>
                             <Field>
-                              <FieldLabel>{t('Fixed price')}</FieldLabel>
-                              <FormControl>
-                                <InputGroup>
-                                  <InputGroupAddon>$</InputGroupAddon>
-                                  <InputGroupInput
-                                    inputMode='decimal'
-                                    placeholder='0.01'
+                              <FormLabel>{t('Fixed price')}</FormLabel>
+                              <InputGroup className='has-[[data-pricing-error]]:h-auto has-[[data-pricing-error]]:flex-wrap'>
+                                <InputGroupAddon>
+                                  {currency.symbol}
+                                </InputGroupAddon>
+                                <FormControl>
+                                  <PricingAmountInput
                                     {...field}
-                                    onChange={(event) => {
-                                      const value = event.target.value
-                                      if (numericDraftRegex.test(value)) {
-                                        field.onChange(value)
-                                      }
-                                    }}
+                                    value={field.value ?? ''}
+                                    currency={currency}
+                                    grouped
+                                    placeholder='0.01'
+                                    onChange={field.onChange}
                                   />
-                                  <InputGroupAddon align='inline-end'>
-                                    {t('per request')}
-                                  </InputGroupAddon>
-                                </InputGroup>
-                              </FormControl>
+                                </FormControl>
+                                <InputGroupAddon align='inline-end'>
+                                  {t('per request')}
+                                </InputGroupAddon>
+                              </InputGroup>
                               {priceComparison?.request != null && (
                                 <div className='text-muted-foreground text-xs'>
-                                  {t('Vendor price')}:{' '}
-                                  {formatBillingCurrencyFromUSD(
-                                    priceComparison.request
-                                  )}
-                                  {Number.isFinite(Number(field.value)) && (
-                                    <span
-                                      className={cn(
-                                        'ml-2 font-medium',
-                                        Number(field.value) * priceMultiplier -
-                                          priceComparison.request >
-                                          0
-                                          ? 'text-rose-500'
-                                          : Number(field.value) * priceMultiplier -
-                                                priceComparison.request <
-                                              0
-                                            ? 'text-emerald-500'
-                                            : 'text-muted-foreground'
-                                      )}
-                                    >
-                                      {t('Difference')}:{' '}
-                                      {Number(field.value) * priceMultiplier -
-                                        priceComparison.request >
-                                      0
-                                        ? '+'
-                                        : ''}
-                                      {formatBillingCurrencyFromUSD(
-                                        Number(field.value) * priceMultiplier -
-                                          priceComparison.request
-                                      )}
-                                    </span>
-                                  )}
+                                  {t('Vendor price')}: {formatBillingCurrencyFromUSD(priceComparison.request)}
+                                  {Number.isFinite(Number(field.value)) && (() => {
+                                    const difference = Number(field.value) * priceMultiplier - priceComparison.request
+                                    return (
+                                      <span className={cn('ml-2 font-medium', difference > 0 ? 'text-rose-500' : difference < 0 ? 'text-emerald-500' : 'text-muted-foreground')}>
+                                        {t('Difference')}: {difference > 0 ? '+' : ''}{formatBillingCurrencyFromUSD(difference)}
+                                      </span>
+                                    )
+                                  })()}
                                 </div>
                               )}
-                              <FieldDescription>
+                              <FormDescription>
                                 {t(
-                                  'Cost in USD per request, regardless of tokens used.'
+                                  'Cost in {{currency}} per request, regardless of tokens used.',
+                                  { currency: currency.label }
                                 )}
-                              </FieldDescription>
+                              </FormDescription>
                               <FormMessage />
                             </Field>
                           </FormItem>
@@ -845,6 +909,7 @@ export const ModelPricingEditorPanel = forwardRef<
                     <FieldGroup className='gap-5'>
                       {taskUsageSchema ? (
                         <TaskUsagePricingEditor
+                          currency={currency}
                           key={`${editorReloadToken}:${watchedValues.name}`}
                           billingExpr={resolvedBillingExpr}
                           requestRuleExpr={requestRuleExpr}
@@ -855,6 +920,7 @@ export const ModelPricingEditorPanel = forwardRef<
                         />
                       ) : (
                         <TieredPricingEditor
+                          currency={currency}
                           key={editorReloadToken}
                           modelName={watchedValues.name}
                           billingExpr={billingExpr}
@@ -870,19 +936,27 @@ export const ModelPricingEditorPanel = forwardRef<
                 </Tabs>
               </FieldGroup>
 
-              <aside className='bg-muted/20 sticky top-0 rounded-lg border'>
+              <aside
+                aria-label={t('Preview')}
+                className='bg-muted/20 min-w-0 rounded-lg border @min-[960px]/pricing-editor:sticky @min-[960px]/pricing-editor:top-0'
+              >
                 <div className='border-b px-3 py-2'>
                   <div className='text-sm font-medium'>{t('Preview')}</div>
                 </div>
                 <div className='divide-y'>
                   {previewRows.map((row) => {
-                    const raw = Number(row.value.replace(/^\$/, ''))
+                    const comparisonKey = previewComparisonKeys[row.key]
+                    const rawValues: Partial<Record<'input' | LaneKey | 'request', string>> = {
+                      input: promptPrice,
+                      ...lanePrices,
+                      request: watchedValues.price,
+                    }
+                    const raw = comparisonKey == null ? Number.NaN : Number(rawValues[comparisonKey])
                     const discounted = raw * priceMultiplier
-                    const comparison = priceComparison?.[previewComparisonKeys[row.key]]
-                    const difference =
-                      Number.isFinite(discounted) && comparison != null
-                        ? discounted - comparison
-                        : undefined
+                    const comparison = comparisonKey == null ? undefined : priceComparison?.[comparisonKey]
+                    const difference = Number.isFinite(discounted) && comparison != null
+                      ? discounted - comparison
+                      : undefined
                     return <div key={row.key} className='grid gap-1 px-3 py-2.5'>
                       <span className='text-muted-foreground text-xs'>
                         {row.label}
@@ -896,21 +970,11 @@ export const ModelPricingEditorPanel = forwardRef<
                         )}
                       >
                         {Number.isFinite(discounted) && !row.multiline
-                          ? `$${formatPricingNumber(discounted)}`
+                          ? formatPricingAmount(discounted, currency)
                           : row.value}
                         {difference != null && (
-                          <small
-                            className={cn(
-                              'ml-2 font-medium',
-                              difference > 0
-                                ? 'text-rose-500'
-                                : difference < 0
-                                  ? 'text-emerald-500'
-                                  : 'text-muted-foreground'
-                            )}
-                          >
-                            {t('Difference')}: {difference > 0 ? '+' : ''}
-                            {formatBillingCurrencyFromUSD(difference)}
+                          <small className={cn('ml-2 font-medium', difference > 0 ? 'text-rose-500' : difference < 0 ? 'text-emerald-500' : 'text-muted-foreground')}>
+                            {t('Difference')}: {difference > 0 ? '+' : ''}{formatBillingCurrencyFromUSD(difference)}
                           </small>
                         )}
                       </span>
