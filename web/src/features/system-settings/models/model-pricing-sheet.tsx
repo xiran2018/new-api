@@ -20,6 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertTriangle, Save } from 'lucide-react'
 import {
   forwardRef,
+  type ReactNode,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -119,6 +120,7 @@ type ModelPricingEditorPanelProps = Omit<
 > & {
   className?: string
   embedded?: boolean
+  pricingHeaderAction?: ReactNode
 }
 
 export type ModelPricingEditorPanelHandle = {
@@ -202,6 +204,7 @@ export const ModelPricingEditorPanel = forwardRef<
     priceComparison,
     priceMultiplier = 1,
     expressionComparison,
+    pricingHeaderAction,
   },
   ref
 ) {
@@ -721,7 +724,12 @@ export const ModelPricingEditorPanel = forwardRef<
                   />
                 )}
 
-                <PricingCurrencySelector siteCurrency={siteCurrency} />
+                <div className='flex flex-wrap items-end gap-3'>
+                  <div className='min-w-0 flex-1'>
+                    <PricingCurrencySelector siteCurrency={siteCurrency} />
+                  </div>
+                  {pricingHeaderAction}
+                </div>
 
                 <Tabs
                   key={editorReloadToken}

@@ -31,11 +31,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { usePricingPreferencesStore } from '@/stores/pricing-preferences-store'
+import type { PricingCurrencyPreference } from '@/stores/pricing-preferences-store'
 
 import { isValidPricingCurrency, type PricingCurrency } from './currency'
 
 export function PricingCurrencySelector(props: {
   siteCurrency: PricingCurrency | null
+  onValueChange?: (currency: PricingCurrencyPreference) => void
 }) {
   const { t } = useTranslation()
   const id = useId()
@@ -92,6 +94,7 @@ export function PricingCurrencySelector(props: {
         onValueChange={(next) => {
           if (next === 'USD' || (next === 'site' && available)) {
             setCurrency(next)
+            props.onValueChange?.(next)
           }
         }}
       >
