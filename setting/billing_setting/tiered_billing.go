@@ -186,6 +186,44 @@ func SmokeTestTaskExpr(exprStr string, schema map[string]jsplugin.UsageFieldSche
 	return nil
 }
 
+// SmokeTestRequestUsageExpr validates expressions for synchronous media
+// requests. These facts are populated by relay/helper before pricing runs.
+func SmokeTestRequestUsageExpr(exprStr string) error {
+	schema := map[string]jsplugin.UsageFieldSchema{
+		"resolution":      {Enum: []string{"1K", "2K", "1024X1024", "1920X1080"}},
+		"resolution_tier": {Enum: []string{"1K", "2K", "4K"}},
+		"quality":         {Enum: []string{"standard", "hd"}},
+		"mode":            {Enum: []string{"standard", "pro"}},
+		"prompt_extend":   {Type: "boolean"},
+		"audio":           {Type: "boolean"},
+		"input_images":    {Type: "number", Unit: "count"},
+		"output_images":   {Type: "number", Unit: "count"},
+		"count":           {Type: "number", Unit: "count"},
+		"characters":      {Type: "number", Unit: "count"},
+		"seconds":         {Type: "number", Unit: "second"},
+	}
+	return SmokeTestTaskExpr(exprStr, schema)
+}
+
+func IsRequestUsageExpr(exprStr string) bool {
+	keys := billingexpr.UsedUsageKeys(exprStr)
+	if len(keys) == 0 {
+		return false
+	}
+	allowed := map[string]bool{
+		"resolution": true, "resolution_tier": true, "quality": true,
+		"mode": true, "prompt_extend": true, "audio": true,
+		"input_images": true, "output_images": true, "count": true,
+		"characters": true, "seconds": true,
+	}
+	for key := range keys {
+		if !allowed[key] {
+			return false
+		}
+	}
+	return true
+}
+
 type usageSmokeDimension struct {
 	name   string
 	values []any

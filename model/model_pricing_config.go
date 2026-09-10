@@ -239,6 +239,8 @@ func ValidateModelPricing(name string, values PricingValues) error {
 				} else {
 					err = billing_setting.SmokeTestExpr(expression)
 				}
+			} else if billing_setting.IsRequestUsageExpr(expression) {
+				err = billing_setting.SmokeTestRequestUsageExpr(expression)
 			} else {
 				err = billing_setting.SmokeTestExpr(expression)
 			}

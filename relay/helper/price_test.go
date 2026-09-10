@@ -68,6 +68,36 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
 }
 
+func TestModelPriceHelperTieredImageResolutionPricing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(saved)) })
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode":    `{"image-matrix":"tiered_expr"}`,
+		"billing_setting.billing_expr":    `{"image-matrix":"u(\"resolution_tier\") == \"2K\" ? tier(\"2K\", u(\"input_images\") * 20000 + u(\"output_images\") * 500000) : tier(\"1K\", u(\"input_images\") * 20000 + u(\"output_images\") * 250000)"}`,
+		"group_ratio_setting.group_ratio": `{"default":1}`,
+	}))
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "image-matrix",
+		UserGroup:       "default", UsingGroup: "default",
+		BillingRequestInput: &billingexpr.RequestInput{Usage: map[string]any{
+			"resolution_tier": "2K", "input_images": float64(1), "output_images": float64(2),
+		}},
+	}
+	priceData, err := ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	require.Equal(t, 510000, priceData.QuotaToPreConsume)
+	require.Equal(t, "2K", info.TieredBillingSnapshot.EstimatedTier)
+}
+
 func TestModelPriceHelperTieredPreConsumeMaxTokensFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

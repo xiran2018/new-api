@@ -2,12 +2,14 @@ package helper
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
@@ -15,6 +17,38 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+func TestBuildImageBillingExprRequestInput(t *testing.T) {
+	n := uint(2)
+	request := &dto.ImageRequest{
+		Model:  "qwen-image-3.0-pro",
+		N:      &n,
+		Images: json.RawMessage(`["first","second"]`),
+		Extra: map[string]json.RawMessage{
+			"parameters": json.RawMessage(`{"size":"2048*2048","audio":true,"mode":"wan-pro"}`),
+		},
+	}
+	input, err := BuildImageBillingExprRequestInput(request, nil)
+	require.NoError(t, err)
+	require.Equal(t, "2048X2048", input.Usage["resolution"])
+	require.Equal(t, "2K", input.Usage["resolution_tier"])
+	require.Equal(t, float64(2), input.Usage["input_images"])
+	require.Equal(t, float64(2), input.Usage["output_images"])
+	require.Equal(t, true, input.Usage["audio"])
+	require.Equal(t, "wan-pro", input.Usage["mode"])
+}
+
+func TestBuildImageBillingExprRequestInputDefaults(t *testing.T) {
+	input, err := BuildImageBillingExprRequestInput(&dto.ImageRequest{
+		Model: "qwen-image-3.0",
+		Size:  "1024x1024",
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, "1024X1024", input.Usage["resolution"])
+	require.Equal(t, "1K", input.Usage["resolution_tier"])
+	require.Equal(t, float64(0), input.Usage["input_images"])
+	require.Equal(t, float64(1), input.Usage["output_images"])
+}
 
 func TestResolveIncomingBillingExprRequestInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -60,4 +94,14 @@ func TestBuildBillingExprRequestInputFromRequest(t *testing.T) {
 	require.True(t, gjson.GetBytes(input.Body, "stream").Bool())
 	require.Equal(t, "user", gjson.GetBytes(input.Body, "messages.0.role").String())
 	require.Equal(t, float64(3000), gjson.GetBytes(input.Body, "max_tokens").Float())
+}
+
+func TestResolveIncomingBillingExprRequestInputKeepsUsageFacts(t *testing.T) {
+	info := &relaycommon.RelayInfo{BillingRequestInput: &billingexpr.RequestInput{
+		Usage: map[string]any{"resolution": "2K", "output_images": float64(2)},
+	}}
+	input, err := ResolveIncomingBillingExprRequestInput(nil, info)
+	require.NoError(t, err)
+	require.Equal(t, "2K", input.Usage["resolution"])
+	require.Equal(t, float64(2), input.Usage["output_images"])
 }

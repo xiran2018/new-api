@@ -121,6 +121,9 @@ type ModelPricingEditorPanelProps = Omit<
   className?: string
   embedded?: boolean
   pricingHeaderAction?: ReactNode
+  additionalPricingTab?: { label: ReactNode; content: ReactNode }
+  additionalPricingActive?: boolean
+  onAdditionalPricingActiveChange?: (active: boolean) => void
 }
 
 export type ModelPricingEditorPanelHandle = {
@@ -205,6 +208,9 @@ export const ModelPricingEditorPanel = forwardRef<
     priceMultiplier = 1,
     expressionComparison,
     pricingHeaderAction,
+    additionalPricingTab,
+    additionalPricingActive = false,
+    onAdditionalPricingActiveChange,
   },
   ref
 ) {
@@ -733,11 +739,25 @@ export const ModelPricingEditorPanel = forwardRef<
 
                 <Tabs
                   key={editorReloadToken}
-                  value={pricingMode}
-                  onValueChange={handleModeChange}
+                  value={additionalPricingActive ? 'additional' : pricingMode}
+                  onValueChange={(value) => {
+                    if (value === 'additional') {
+                      onAdditionalPricingActiveChange?.(true)
+                      return
+                    }
+                    onAdditionalPricingActiveChange?.(false)
+                    handleModeChange(value)
+                  }}
                   className='gap-4'
                 >
-                  <TabsList className='grid w-full grid-cols-3'>
+                  <TabsList
+                    className={cn(
+                      'grid w-full',
+                      additionalPricingTab
+                        ? 'h-auto grid-cols-2 sm:grid-cols-4'
+                        : 'grid-cols-3'
+                    )}
+                  >
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
                     </TabsTrigger>
@@ -747,7 +767,18 @@ export const ModelPricingEditorPanel = forwardRef<
                     <TabsTrigger value='tiered_expr'>
                       {t('Expression')}
                     </TabsTrigger>
+                    {additionalPricingTab && (
+                      <TabsTrigger value='additional'>
+                        {additionalPricingTab.label}
+                      </TabsTrigger>
+                    )}
                   </TabsList>
+
+                  {additionalPricingTab && (
+                    <TabsContent value='additional' className='min-w-0 pt-0'>
+                      {additionalPricingTab.content}
+                    </TabsContent>
+                  )}
 
                   <TabsContent
                     value='per-token'

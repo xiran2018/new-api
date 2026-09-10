@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -102,4 +102,11 @@ func TestSmokeTestExprRejectsTaskUsageWithoutSchema(t *testing.T) {
 	assert.ErrorContains(t, err, "no task plugin usage schema")
 
 	require.NoError(t, SmokeTestExpr(`tier("base", p * 2 + c * 8)`))
+}
+
+func TestSmokeTestRequestUsageExprAcceptsDynamicImageRules(t *testing.T) {
+	expression := `u("resolution_tier") == "2K" ? tier("2K", u("input_images") * 20000 + u("output_images") * 500000) : tier("1K", u("input_images") * 20000 + u("output_images") * 250000)`
+	require.NoError(t, SmokeTestRequestUsageExpr(expression))
+	require.True(t, IsRequestUsageExpr(expression))
+	require.False(t, IsRequestUsageExpr(`tier("custom", u("undeclared") * 1)`))
 }
