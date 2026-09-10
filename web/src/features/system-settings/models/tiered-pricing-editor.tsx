@@ -160,6 +160,16 @@ const PRESET_GROUPS: PresetGroup[] = [
     group: 'Tiered',
     presets: [
       {
+        key: 'input-length-tiers',
+        label: 'Input token range pricing',
+        expr: 'len <= 128000 ? tier("0-128K", p * 1 + c * 4) : len <= 256000 ? tier("128K-256K", p * 2 + c * 8) : tier("256K+", p * 4 + c * 16)',
+      },
+      {
+        key: 'input-length-thinking-tiers',
+        label: 'Input range + thinking output pricing',
+        expr: 'len <= 256000 ? tier("0-256K", p * 2 + c * (param("enable_thinking") == true ? 12 : 8)) : tier("256K+", p * 6 + c * (param("enable_thinking") == true ? 24 : 16))',
+      },
+      {
         key: 'claude-sonnet',
         label: 'Claude Sonnet 4.5',
         expr: 'len <= 200000 ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6) : tier("long_context", p * 6 + c * 22.5 + cr * 0.6 + cc * 7.5 + cc1h * 12)',
@@ -184,6 +194,16 @@ const PRESET_GROUPS: PresetGroup[] = [
   {
     group: 'Multimodal',
     presets: [
+      {
+        key: 'text-image-audio-split',
+        label: 'Text/image/audio split pricing',
+        expr: 'tier("multimodal", p * 1 + c * 4 + img * 1 + img_o * 8 + ai * 6 + ao * 24)',
+      },
+      {
+        key: 'unified-multimodal-input-audio-output',
+        label: 'Unified text/image/video input + separate audio pricing',
+        expr: 'tier("multimodal_audio", p * 7 + ai * 53 + c * 40 + ao * 213)',
+      },
       {
         key: 'gpt-image-1-mini',
         label: 'GPT Image 1 Mini',
