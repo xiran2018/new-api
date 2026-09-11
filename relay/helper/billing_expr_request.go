@@ -66,6 +66,22 @@ func BuildImageBillingExprRequestInput(request *dto.ImageRequest, headers map[st
 	return input, nil
 }
 
+// BuildAudioBillingExprRequestInput exposes TTS input length to expression
+// billing. utf8.RuneCountInString counts user-visible Unicode code points
+// instead of UTF-8 bytes, matching providers that publish per-character rates.
+func BuildAudioBillingExprRequestInput(request *dto.AudioRequest, headers map[string]string) (billingexpr.RequestInput, error) {
+	input, err := BuildBillingExprRequestInputFromRequest(request, headers)
+	if err != nil || request == nil {
+		return input, err
+	}
+	input.Usage = map[string]any{
+		"characters":            float64(utf8.RuneCountInString(request.Input)),
+		"tts_input_characters":  float64(utf8.RuneCountInString(request.Input)),
+		"tts_output_characters": float64(utf8.RuneCountInString(request.Input)),
+	}
+	return input, nil
+}
+
 // UpdateImageBillingUsageCount replaces the request estimate with the actual
 // number of images returned by the upstream before tiered settlement.
 func UpdateImageBillingUsageCount(info *relaycommon.RelayInfo, count int64) {

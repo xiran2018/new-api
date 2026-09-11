@@ -135,6 +135,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		relayInfo.BillingRequestInput = &billingInput
 	}
+	if audioRequest, ok := request.(*dto.AudioRequest); ok {
+		billingInput, billingErr := helper.BuildAudioBillingExprRequestInput(audioRequest, relayInfo.RequestHeaders)
+		if billingErr != nil {
+			newAPIError = types.NewError(billingErr, types.ErrorCodeInvalidRequest, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+			return
+		}
+		relayInfo.BillingRequestInput = &billingInput
+	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken

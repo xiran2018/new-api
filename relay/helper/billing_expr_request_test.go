@@ -50,6 +50,19 @@ func TestBuildImageBillingExprRequestInputDefaults(t *testing.T) {
 	require.Equal(t, float64(1), input.Usage["output_images"])
 }
 
+func TestBuildAudioBillingExprRequestInputCountsUnicodeCharacters(t *testing.T) {
+	input, err := BuildAudioBillingExprRequestInput(&dto.AudioRequest{
+		Model: "qwen3-tts-flash",
+		Input: "你好ab",
+	}, map[string]string{"X-Test": "tts"})
+	require.NoError(t, err)
+	require.Equal(t, float64(4), input.Usage["characters"])
+	require.Equal(t, float64(4), input.Usage["tts_input_characters"])
+	require.Equal(t, float64(4), input.Usage["tts_output_characters"])
+	require.Equal(t, "tts", input.Headers["X-Test"])
+	require.Contains(t, string(input.Body), `"input":"你好ab"`)
+}
+
 func TestResolveIncomingBillingExprRequestInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
