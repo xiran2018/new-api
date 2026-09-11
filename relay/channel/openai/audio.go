@@ -131,6 +131,13 @@ func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	if err := common.Unmarshal(responseBody, &responseData); err == nil && responseData.Usage != nil {
 		if responseData.Usage.TotalTokens > 0 {
 			usage := responseData.Usage
+			estimatedAudioTokens := info.GetEstimatePromptTokens()
+			if usage.PromptTokensDetails.AudioTokens == 0 && estimatedAudioTokens > 0 {
+				usage.PromptTokensDetails.AudioTokens = estimatedAudioTokens
+				if usage.PromptTokens < estimatedAudioTokens {
+					usage.PromptTokens = estimatedAudioTokens
+				}
+			}
 			if usage.PromptTokens == 0 {
 				usage.PromptTokens = usage.InputTokens
 			}
@@ -143,6 +150,7 @@ func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 
 	usage := &dto.Usage{}
 	usage.PromptTokens = info.GetEstimatePromptTokens()
+	usage.PromptTokensDetails.AudioTokens = usage.PromptTokens
 	usage.CompletionTokens = 0
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	return nil, usage

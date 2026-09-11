@@ -788,6 +788,34 @@ func TestBuildTieredTokenParams_GPT_AudioOutput(t *testing.T) {
 	}
 }
 
+func TestBuildTieredTokenParams_GPT_VideoAndAudioOnlyOutput(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 600,
+		PromptTokensDetails: dto.InputTokenDetails{
+			VideoTokens: 200,
+			AudioTokens: 100,
+		},
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			AudioTokens: 100,
+			TextTokens:  500,
+		},
+	}
+	expr := `tier("multimodal", p * 7 + c * (ao > 0 ? 0 : 40) + ai * 53 + vid * 7 + ao * 213)`
+	params := BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expr))
+	if params.P != 700 || params.C != 500 || params.VI != 200 || params.AI != 100 || params.AO != 100 {
+		t.Fatalf("unexpected normalized params: %+v", params)
+	}
+	cost, _, err := billingexpr.RunExpr(expr, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := 700*7.0 + 100*53.0 + 200*7.0 + 100*213.0
+	if math.Abs(cost-want) > 1e-6 {
+		t.Fatalf("cost = %f, want %f", cost, want)
+	}
+}
+
 func TestBuildTieredTokenParams_GPT_AudioOutputNoVar(t *testing.T) {
 	usage := &dto.Usage{
 		PromptTokens:     1000,
@@ -969,6 +997,20 @@ func randomUsage(rng *rand.Rand) *dto.Usage {
 			AudioTokens: audioOut,
 			TextTokens:  completion - imgOut - audioOut,
 		},
+	}
+}
+
+func TestBuildTieredTokenParamsAudioDuration(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:        1000,
+		PromptTokensDetails: dto.InputTokenDetails{AudioTokens: 1000},
+	}
+	params := BuildTieredTokenParams(usage, false, map[string]bool{"aud_s": true})
+	if params.P != 0 {
+		t.Fatalf("text prompt tokens = %v, want 0", params.P)
+	}
+	if params.AS != 60 {
+		t.Fatalf("audio duration = %v, want 60 seconds", params.AS)
 	}
 }
 

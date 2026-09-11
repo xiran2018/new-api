@@ -66,6 +66,20 @@ func BuildImageBillingExprRequestInput(request *dto.ImageRequest, headers map[st
 	return input, nil
 }
 
+// UpdateImageBillingUsageCount replaces the request estimate with the actual
+// number of images returned by the upstream before tiered settlement.
+func UpdateImageBillingUsageCount(info *relaycommon.RelayInfo, count int64) {
+	if info == nil || info.BillingRequestInput == nil || count <= 0 || count > int64(dto.MaxImageN) {
+		return
+	}
+	if info.BillingRequestInput.Usage == nil {
+		info.BillingRequestInput.Usage = make(map[string]any)
+	}
+	actual := float64(count)
+	info.BillingRequestInput.Usage["output_images"] = actual
+	info.BillingRequestInput.Usage["count"] = actual
+}
+
 func addImageUsageScalars(usage map[string]any, prefix string, values map[string]json.RawMessage) {
 	for key, raw := range values {
 		name := key

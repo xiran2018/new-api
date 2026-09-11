@@ -269,6 +269,7 @@ type InputTokenDetails struct {
 	TextTokens       int `json:"text_tokens"`
 	AudioTokens      int `json:"audio_tokens"`
 	ImageTokens      int `json:"image_tokens"`
+	VideoTokens      int `json:"video_tokens,omitempty"`
 }
 
 // CacheCreationTokensTotal returns the cache-write token count regardless of
@@ -292,6 +293,7 @@ type OutputTokenDetails struct {
 	TextTokens      int `json:"text_tokens"`
 	AudioTokens     int `json:"audio_tokens"`
 	ImageTokens     int `json:"image_tokens"`
+	VideoTokens     int `json:"video_tokens,omitempty"`
 	ReasoningTokens int `json:"reasoning_tokens"`
 }
 

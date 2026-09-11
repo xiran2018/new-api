@@ -10,7 +10,7 @@ The expression is the billing contract between the administrator and the system.
 
 1. **Expression is self-contained** — The expression string alone determines billing. No external ratio tables, no implicit completion multipliers, no hidden conversion factors. Given the same token counts and request context, the same expression always produces the same cost.
 
-2. **Variables are opt-in** — `p` (prompt) and `c` (completion) are the base. Cache (`cr`, `cc`, `cc1h`), image (`img`), and audio (`ai`, `ao`) variables are optional. If omitted, those tokens are included in `p`/`c` and priced at their rate. The system automatically detects which variables the expression uses (via AST introspection) and adjusts token normalization accordingly.
+2. **Variables are opt-in** — `p` (prompt) and `c` (completion) are the base. Cache (`cr`, `cc`, `cc1h`), image (`img`, `img_o`), video (`vid`, `vid_o`), audio (`ai`, `ao`), and audio duration (`aud_s`) variables are optional. If omitted, those tokens are included in `p`/`c` and priced at their rate. The system automatically detects which variables the expression uses (via AST introspection) and adjusts token normalization accordingly.
 
 3. **Prices are real prices** — Expression coefficients are actual $/1M tokens prices as published by providers. No ratio conversion, no `/2` convention. `p * 2.5` means $2.50 per 1M prompt tokens.
 
@@ -36,7 +36,9 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | `cc` | 缓存创建 token 数（Claude 5分钟 TTL / 通用） |
 | `cc1h` | 缓存创建 token 数 — 1小时 TTL（Claude 专用） |
 | `img` | 图片输入 token 数 |
+| `vid` | 视频输入 token 数 |
 | `ai` | 音频输入 token 数 |
+| `aud_s` | 音频输入时长（秒）。ASR 上传文件沿用系统的 1000 token/分钟估算，因此精度为向上取整到秒 |
 
 **输出侧变量：**
 
@@ -44,6 +46,7 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 |------|------|
 | `c` | 输出 token 数。**自动排除**表达式中单独计价的子类别（见下方说明） |
 | `img_o` | 图片输出 token 数 |
+| `vid_o` | 视频输出 token 数 |
 | `ao` | 音频输出 token 数 |
 
 #### `p` 和 `c` 的自动排除机制
@@ -70,6 +73,8 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | `p * 3 + c * 15 + ao * 50` | 400 | 用了 `ao`，音频 100 从 `c` 中扣除按 $50 计费 |
 
 > **注意：** 这个自动排除仅针对 GPT/OpenAI 格式的 API（prompt_tokens 包含所有子类别）。Claude 格式的 API（input_tokens 本身就只包含纯文本）不做任何减法。系统根据上游返回格式自动判断，表达式作者无需关心。
+
+按秒计费仍遵循表达式结果以“每百万”为基准的结算契约。例如每秒 `$0.00022` 应写成 `aud_s * 220`。可视化编辑器会自动完成这个换算，管理员只需填写真实的每秒价格。表达式引用 `aud_s` 时，对应音频 token 会从 `p` 中排除，避免重复计费。
 
 ### Built-in Functions
 

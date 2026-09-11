@@ -33,6 +33,10 @@ export type VisualTier = {
   conditions: TierConditionInput[]
   input_unit_cost: number
   output_unit_cost: number
+  thinking_output_enabled?: boolean
+  thinking_output_unit_cost?: number
+  thinking_param_path?: string
+  audio_output_only?: boolean
   cache_mode: CacheMode
   cache_read_unit_cost?: number
   cache_create_unit_cost?: number
@@ -41,6 +45,9 @@ export type VisualTier = {
   image_output_unit_cost?: number
   audio_input_unit_cost?: number
   audio_output_unit_cost?: number
+  video_input_unit_cost?: number
+  video_output_unit_cost?: number
+  audio_duration_unit_cost?: number
   [field: string]: unknown
 }
 
@@ -65,6 +72,10 @@ export function normalizeVisualTier(
     label: tier.label ?? '',
     input_unit_cost: Number(tier.input_unit_cost) || 0,
     output_unit_cost: Number(tier.output_unit_cost) || 0,
+    thinking_output_enabled: Boolean(tier.thinking_output_enabled),
+    thinking_output_unit_cost: Number(tier.thinking_output_unit_cost) || 0,
+    thinking_param_path: String(tier.thinking_param_path || 'enable_thinking'),
+    audio_output_only: Boolean(tier.audio_output_only),
     cache_mode: getTierCacheMode(tier),
     conditions: Array.isArray(tier.conditions) ? tier.conditions : [],
     ...tier,
@@ -75,6 +86,9 @@ export function normalizeVisualTier(
     image_output_unit_cost: Number(tier.image_output_unit_cost) || 0,
     audio_input_unit_cost: Number(tier.audio_input_unit_cost) || 0,
     audio_output_unit_cost: Number(tier.audio_output_unit_cost) || 0,
+    video_input_unit_cost: Number(tier.video_input_unit_cost) || 0,
+    video_output_unit_cost: Number(tier.video_output_unit_cost) || 0,
+    audio_duration_unit_cost: Number(tier.audio_duration_unit_cost) || 0,
   }
 }
 
@@ -117,7 +131,15 @@ function buildTierBodyExpr(tier: VisualTier): string {
   const ic = Number(tier.input_unit_cost) || 0
   const oc = Number(tier.output_unit_cost) || 0
   parts.push(`p * ${ic}`)
-  parts.push(`c * ${oc}`)
+  if (tier.audio_output_only) {
+    parts.push(`c * (ao > 0 ? 0 : ${oc})`)
+  } else if (tier.thinking_output_enabled) {
+    const path = JSON.stringify(tier.thinking_param_path || 'enable_thinking')
+    const thinkingPrice = Number(tier.thinking_output_unit_cost) || 0
+    parts.push(`c * (param(${path}) == true ? ${thinkingPrice} : ${oc})`)
+  } else {
+    parts.push(`c * ${oc}`)
+  }
   for (const cv of BILLING_CACHE_VAR_MAP) {
     const v = Number((tier as Record<string, unknown>)[cv.field]) || 0
     if (v !== 0) parts.push(`${cv.exprVar} * ${v}`)
@@ -168,6 +190,26 @@ export function tryParseVisualConfig(
     let body = exprStr
     const versionMatch = body.match(/^v\d+:([\s\S]*)$/)
     if (versionMatch) body = versionMatch[1]
+    const thinkingOutputs: Record<number, { path: string; thinking: number }> = {}
+    const audioOnlyOutputs = new Set<number>()
+    const numeric = '([\\d.eE+-]+)'
+    body = body.replace(
+      new RegExp(`c\\s*\\*\\s*\\(\\s*ao\\s*>\\s*0\\s*\\?\\s*0\\s*:\\s*${numeric}\\s*\\)`, 'g'),
+      (_match, standard: string, offset: number) => {
+        const tierIndex = Math.max(0, (body.slice(0, offset).match(/tier\(/g) || []).length - 1)
+        audioOnlyOutputs.add(tierIndex)
+        return `c * ${standard}`
+      }
+    )
+    body = body.replace(
+      new RegExp(`c\\s*\\*\\s*\\(\\s*param\\("([^"]+)"\\)\\s*==\\s*true\\s*\\?\\s*${numeric}\\s*:\\s*${numeric}\\s*\\)`, 'g'),
+      (_match, path: string, thinking: string, standard: string, offset: number) => {
+        const tierIndex = Math.max(0, (body.slice(0, offset).match(/tier\(/g) || []).length - 1)
+        thinkingOutputs[tierIndex] = { path, thinking: Number(thinking) }
+        return `c * ${standard}`
+      }
+    )
+    const originalWithoutThinking = body
     const cacheVarNames = BILLING_CACHE_VAR_MAP.map((cv) => cv.exprVar)
     const optCacheStr = cacheVarNames
       .map((v) => `(?:\\s*\\+\\s*${v}\\s*\\*\\s*([\\d.eE+-]+))?`)
@@ -184,6 +226,12 @@ export function tryParseVisualConfig(
         output_unit_cost: Number(simple[3]),
         label: simple[1],
       }
+      if (thinkingOutputs[0]) {
+        tier.thinking_output_enabled = true
+        tier.thinking_output_unit_cost = thinkingOutputs[0].thinking
+        tier.thinking_param_path = thinkingOutputs[0].path
+      }
+      if (audioOnlyOutputs.has(0)) tier.audio_output_only = true
       BILLING_CACHE_VAR_MAP.forEach((cv, i) => {
         const val = simple[4 + i]
         if (val != null) tier[cv.field] = Number(val)
@@ -201,6 +249,7 @@ export function tryParseVisualConfig(
       'g'
     )
     const tiers: VisualTier[] = []
+    let tierIndex = 0
     let match: RegExpExecArray | null
     while ((match = tierRe.exec(body)) !== null) {
       const condStr = match[1] || ''
@@ -223,6 +272,13 @@ export function tryParseVisualConfig(
         output_unit_cost: Number(match[4]),
         label: match[2],
       }
+      if (thinkingOutputs[tierIndex]) {
+        tier.thinking_output_enabled = true
+        tier.thinking_output_unit_cost = thinkingOutputs[tierIndex].thinking
+        tier.thinking_param_path = thinkingOutputs[tierIndex].path
+      }
+      if (audioOnlyOutputs.has(tierIndex)) tier.audio_output_only = true
+      tierIndex += 1
       const m = match
       BILLING_CACHE_VAR_MAP.forEach((cv, i) => {
         const val = m[5 + i]
@@ -234,7 +290,15 @@ export function tryParseVisualConfig(
 
     const cfg = normalizeVisualConfig({ tiers })
     const regenerated = generateExprFromVisualConfig(cfg)
-    if (regenerated.replace(/\s+/g, '') !== body.replace(/\s+/g, '')) {
+    const regeneratedWithoutThinking = regenerated.replace(
+      new RegExp(`c\\s*\\*\\s*\\(\\s*param\\("([^"]+)"\\)\\s*==\\s*true\\s*\\?\\s*${numeric}\\s*:\\s*${numeric}\\s*\\)`, 'g'),
+      (_match, _path: string, _thinking: string, standard: string) => `c * ${standard}`
+    )
+    const regeneratedWithoutOutputModes = regeneratedWithoutThinking.replace(
+      new RegExp(`c\\s*\\*\\s*\\(\\s*ao\\s*>\\s*0\\s*\\?\\s*0\\s*:\\s*${numeric}\\s*\\)`, 'g'),
+      (_match, standard: string) => `c * ${standard}`
+    )
+    if (regeneratedWithoutOutputModes.replace(/\s+/g, '') !== originalWithoutThinking.replace(/\s+/g, '')) {
       return null
     }
     return cfg
@@ -255,6 +319,9 @@ const ESTIMATOR_VARS = [
   { var: 'img_o', stateKey: 'imageOutputTokens' },
   { var: 'ai', stateKey: 'audioInputTokens' },
   { var: 'ao', stateKey: 'audioOutputTokens' },
+  { var: 'vid', stateKey: 'videoInputTokens' },
+  { var: 'vid_o', stateKey: 'videoOutputTokens' },
+  { var: 'aud_s', stateKey: 'audioDurationSeconds' },
 ] as const
 
 export type ExtraTokenValues = Record<
@@ -272,7 +339,8 @@ export function evalExprLocally(
   exprStr: string,
   promptTokens: number,
   completionTokens: number,
-  extraTokenValues: ExtraTokenValues
+  extraTokenValues: ExtraTokenValues,
+  requestParams: Record<string, unknown> = {}
 ): EvalResult {
   try {
     if (!exprStr || !exprStr.trim()) {
@@ -298,6 +366,7 @@ export function evalExprLocally(
       abs: Math.abs,
       ceil: Math.ceil,
       floor: Math.floor,
+      param: (path: string) => requestParams[path],
     }
     for (const field of ESTIMATOR_VARS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0

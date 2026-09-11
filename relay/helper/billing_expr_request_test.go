@@ -105,3 +105,12 @@ func TestResolveIncomingBillingExprRequestInputKeepsUsageFacts(t *testing.T) {
 	require.Equal(t, "2K", input.Usage["resolution"])
 	require.Equal(t, float64(2), input.Usage["output_images"])
 }
+
+func TestUpdateImageBillingUsageCountUsesActualOutput(t *testing.T) {
+	info := &relaycommon.RelayInfo{BillingRequestInput: &billingexpr.RequestInput{
+		Usage: map[string]any{"output_images": float64(2), "count": float64(2)},
+	}}
+	UpdateImageBillingUsageCount(info, 5)
+	require.Equal(t, float64(5), info.BillingRequestInput.Usage["output_images"])
+	require.Equal(t, float64(5), info.BillingRequestInput.Usage["count"])
+}

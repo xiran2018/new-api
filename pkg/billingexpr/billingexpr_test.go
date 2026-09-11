@@ -947,6 +947,17 @@ func TestAudioTokenVariables(t *testing.T) {
 	}
 }
 
+func TestVideoTokenVariables(t *testing.T) {
+	exprStr := `tier("base", p * 2 + c * 10 + vid * 5 + vid_o * 20)`
+	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 1000, C: 500, VI: 200, VO: 25})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(cost-8500) > 1e-6 {
+		t.Errorf("cost = %f, want 8500", cost)
+	}
+}
+
 func TestImageAudioVariables(t *testing.T) {
 	exprStr := `tier("base", p * 1 + img * 3 + ai * 5 + ao * 10)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 100, Img: 50, AI: 20, AO: 10})
@@ -1039,6 +1050,22 @@ func TestLen_ZeroDefaultsToZero(t *testing.T) {
 	}
 	if trace.MatchedTier != "standard" {
 		t.Errorf("tier = %q, want standard (len=0 <= 200000)", trace.MatchedTier)
+	}
+}
+
+func TestAudioDurationPerSecondExpression(t *testing.T) {
+	cost, trace, err := billingexpr.RunExpr(
+		`tier("audio_transcription", aud_s * 220)`,
+		billingexpr.TokenParams{AS: 10},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(cost-2200) > 1e-9 {
+		t.Fatalf("cost = %v, want 2200", cost)
+	}
+	if trace.MatchedTier != "audio_transcription" {
+		t.Fatalf("tier = %q, want audio_transcription", trace.MatchedTier)
 	}
 }
 

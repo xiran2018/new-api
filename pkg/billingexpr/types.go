@@ -25,8 +25,11 @@ type TokenParams struct {
 	CC1h float64 // cache creation tokens — 1-hour TTL (Claude only)
 	Img  float64 // image input tokens
 	ImgO float64 // image output tokens
+	VI   float64 // video input tokens
+	VO   float64 // video output tokens
 	AI   float64 // audio input tokens
 	AO   float64 // audio output tokens
+	AS   float64 // audio input duration in seconds (derived from the canonical 1000 tokens/minute estimate)
 }
 
 // RequestRuleTrace describes one request-dependent multiplier detected at compile time.

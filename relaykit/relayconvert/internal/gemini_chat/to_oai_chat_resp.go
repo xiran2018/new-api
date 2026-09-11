@@ -43,6 +43,8 @@ func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTo
 			usage.PromptTokensDetails.AudioTokens += detail.TokenCount
 		} else if detail.Modality == "IMAGE" {
 			usage.PromptTokensDetails.ImageTokens += detail.TokenCount
+		} else if detail.Modality == "VIDEO" {
+			usage.PromptTokensDetails.VideoTokens += detail.TokenCount
 		} else if detail.Modality == "TEXT" {
 			usage.PromptTokensDetails.TextTokens += detail.TokenCount
 		}
@@ -52,6 +54,8 @@ func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTo
 			usage.PromptTokensDetails.AudioTokens += detail.TokenCount
 		} else if detail.Modality == "IMAGE" {
 			usage.PromptTokensDetails.ImageTokens += detail.TokenCount
+		} else if detail.Modality == "VIDEO" {
+			usage.PromptTokensDetails.VideoTokens += detail.TokenCount
 		} else if detail.Modality == "TEXT" {
 			usage.PromptTokensDetails.TextTokens += detail.TokenCount
 		}
@@ -62,6 +66,8 @@ func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTo
 			usage.CompletionTokenDetails.ImageTokens += detail.TokenCount
 		case "AUDIO":
 			usage.CompletionTokenDetails.AudioTokens += detail.TokenCount
+		case "VIDEO":
+			usage.CompletionTokenDetails.VideoTokens += detail.TokenCount
 		case "TEXT":
 			usage.CompletionTokenDetails.TextTokens += detail.TokenCount
 		}

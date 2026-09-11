@@ -116,6 +116,9 @@ const CACHE_PRICE_VARS = BILLING_EXTRA_VARS.filter(
 const MEDIA_PRICE_VARS = BILLING_EXTRA_VARS.filter(
   (variable) => variable.group === 'media'
 )
+const DURATION_PRICE_VARS = BILLING_EXTRA_VARS.filter(
+  (variable) => variable.group === 'duration'
+)
 
 const CONDITION_INPUT_OPTIONS: {
   value: TierConditionInput['var']
@@ -202,7 +205,17 @@ const PRESET_GROUPS: PresetGroup[] = [
       {
         key: 'unified-multimodal-input-audio-output',
         label: 'Unified text/image/video input + separate audio pricing',
-        expr: 'tier("multimodal_audio", p * 7 + ai * 53 + c * 40 + ao * 213)',
+        expr: 'tier("multimodal_audio", p * 7 + c * (ao > 0 ? 0 : 40) + img * 7 + ai * 53 + vid * 7 + ao * 213)',
+      },
+      {
+        key: 'live-translation-multimodal',
+        label: 'Live translation multimodal token pricing',
+        expr: 'tier("live_translation", p * 0 + c * 10 + img * 4 + ai * 10 + ao * 40)',
+      },
+      {
+        key: 'audio-transcription-per-second',
+        label: 'Audio transcription per second',
+        expr: 'tier("audio_transcription", p * 0 + c * 0 + aud_s * 220)',
       },
       {
         key: 'gpt-image-1-mini',
@@ -658,9 +671,16 @@ function VisualTierCard({
 
   const inputUnitPrice = unitCostToPrice(tier.input_unit_cost)
   const outputUnitPrice = unitCostToPrice(tier.output_unit_cost)
+  const thinkingOutputUnitPrice = unitCostToPrice(
+    tier.thinking_output_unit_cost ?? tier.output_unit_cost
+  )
   const hasMediaPricing = MEDIA_PRICE_VARS.some((variable) => {
     const fieldKey = variable.tierField as keyof VisualTier
     return unitCostToPrice((tier[fieldKey] as number | undefined) ?? 0) > 0
+  })
+  const hasDurationPricing = DURATION_PRICE_VARS.some((variable) => {
+    const fieldKey = variable.tierField as keyof VisualTier
+    return Number(tier[fieldKey] ?? 0) > 0
   })
   const [mediaOpen, setMediaOpen] = useState(hasMediaPricing)
 
@@ -771,17 +791,77 @@ function VisualTierCard({
               priceMultiplier={priceMultiplier}
               cnyExchangeRate={cnyExchangeRate}
             />
-            <PriceField
-              currency={currency}
-              label={t('Output price')}
-              value={outputUnitPrice}
-              onChange={(value) =>
-                handlePriceChange('output_unit_cost', priceToUnitCost(value))
-              }
-              vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.output_unit_cost) : undefined}
-              priceMultiplier={priceMultiplier}
-              cnyExchangeRate={cnyExchangeRate}
-            />
+            <div className='space-y-2'>
+              <Tabs
+                value={tier.audio_output_only ? 'audio-only' : tier.thinking_output_enabled ? 'thinking' : 'unified'}
+                onValueChange={(value) =>
+                  value !== null && onChange({
+                    ...tier,
+                    thinking_output_enabled: value === 'thinking',
+                    audio_output_only: value === 'audio-only',
+                    thinking_output_unit_cost:
+                      tier.thinking_output_unit_cost ?? tier.output_unit_cost,
+                    thinking_param_path: tier.thinking_param_path || 'enable_thinking',
+                  })
+                }
+              >
+                <TabsList className='h-8'>
+                  <TabsTrigger value='unified' className='px-2 text-xs'>
+                    {t('Unified output price')}
+                  </TabsTrigger>
+                  <TabsTrigger value='thinking' className='px-2 text-xs'>
+                    {t('Thinking mode prices')}
+                  </TabsTrigger>
+                  <TabsTrigger value='audio-only' className='px-2 text-xs'>
+                    {t('Audio-only output pricing')}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className='flex flex-wrap gap-x-4 gap-y-2'>
+                <PriceField
+                  currency={currency}
+                  label={tier.thinking_output_enabled
+                    ? t('Non-thinking output price')
+                    : tier.audio_output_only
+                      ? t('Text output price (without audio)')
+                      : t('Output price')}
+                  value={outputUnitPrice}
+                  onChange={(value) =>
+                    handlePriceChange('output_unit_cost', priceToUnitCost(value))
+                  }
+                  vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.output_unit_cost) : undefined}
+                  priceMultiplier={priceMultiplier}
+                  cnyExchangeRate={cnyExchangeRate}
+                />
+                {tier.thinking_output_enabled && (
+                  <PriceField
+                    currency={currency}
+                    label={t('Thinking output price')}
+                    value={thinkingOutputUnitPrice}
+                    onChange={(value) => handlePriceChange('thinking_output_unit_cost', priceToUnitCost(value))}
+                    vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.thinking_output_unit_cost ?? comparisonTier.output_unit_cost) : undefined}
+                    priceMultiplier={priceMultiplier}
+                    cnyExchangeRate={cnyExchangeRate}
+                  />
+                )}
+              </div>
+              {tier.thinking_output_enabled && (
+                <div className='max-w-sm space-y-1'>
+                  <Label className='text-muted-foreground text-xs'>{t('Thinking request parameter')}</Label>
+                  <Input
+                    className='h-8 font-mono text-xs'
+                    value={tier.thinking_param_path || 'enable_thinking'}
+                    onChange={(event) => onChange({ ...tier, thinking_param_path: event.target.value })}
+                    placeholder='enable_thinking'
+                  />
+                </div>
+              )}
+              {tier.audio_output_only && (
+                <p className='text-muted-foreground max-w-md text-xs'>
+                  {t('When audio output tokens are present, text output tokens are not charged; only the audio output price is used.')}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className='space-y-2'>
@@ -843,6 +923,35 @@ function VisualTierCard({
           </div>
         )}
       </div>
+
+      {(hasDurationPricing || tier.label === 'audio_transcription') && (
+        <div className='space-y-2 rounded-md border p-3'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Label className='text-sm font-semibold'>{t('Audio duration pricing')}</Label>
+            <span className='bg-muted text-muted-foreground rounded-md px-2 py-1 text-xs'>
+              {currency.symbol}/{t('Per second')}
+            </span>
+          </div>
+          {DURATION_PRICE_VARS.map((variable) => {
+            const fieldKey = variable.tierField as keyof VisualTier
+            const coefficient = Number(tier[fieldKey] ?? 0)
+            const comparisonCoefficient = Number(comparisonTier?.[fieldKey] ?? 0)
+            return (
+              <PriceField
+                currency={currency}
+                key={variable.key}
+                label={t(variable.label)}
+                value={coefficient / 1_000_000}
+                onChange={(next) => handlePriceChange(fieldKey, Number(next) * 1_000_000)}
+                vendorPrice={comparisonTier ? comparisonCoefficient / 1_000_000 : undefined}
+                priceMultiplier={priceMultiplier}
+                cnyExchangeRate={cnyExchangeRate}
+              />
+            )
+          })}
+          <p className='text-muted-foreground text-xs'>{t('Output is free')}</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -984,7 +1093,7 @@ function RawExprEditor({ exprString, onChange }: RawExprEditorProps) {
             {t('Variables')}: <code>len</code>, <code>p</code>, <code>c</code>,{' '}
             <code>cr</code>, <code>cc</code>, <code>cc1h</code>,{' '}
             <code>img</code>, <code>img_o</code>, <code>ai</code>,{' '}
-            <code>ao</code>
+            <code>ao</code>, <code>vid</code>, <code>vid_o</code>
           </div>
           <div>
             {t('Functions')}: <code>tier(name, value)</code>, <code>max</code>,{' '}
@@ -1414,7 +1523,7 @@ function PresetSection({ applyPreset }: PresetSectionProps) {
                 className='h-7 text-xs'
                 onClick={() => applyPreset(preset)}
               >
-                {preset.label}
+                {t(preset.label)}
               </Button>
             ))}
           </div>
@@ -1441,6 +1550,7 @@ function CostEstimator({ effectiveExpr, currency, comparisonExpr, priceMultiplie
   const outputId = useId()
   const [promptTokens, setPromptTokens] = useState(0)
   const [completionTokens, setCompletionTokens] = useState(0)
+  const [thinkingEnabled, setThinkingEnabled] = useState(false)
   const [extras, setExtras] = useState<ExtraTokenValues>({
     cacheReadTokens: 0,
     cacheCreateTokens: 0,
@@ -1449,23 +1559,34 @@ function CostEstimator({ effectiveExpr, currency, comparisonExpr, priceMultiplie
     imageOutputTokens: 0,
     audioInputTokens: 0,
     audioOutputTokens: 0,
+    videoInputTokens: 0,
+    videoOutputTokens: 0,
+    audioDurationSeconds: 0,
   })
 
   const usesExtras = useMemo(
     () => exprUsesExtraVars(effectiveExpr),
     [effectiveExpr]
   )
+  const thinkingParamPath = useMemo(
+    () => effectiveExpr.match(/param\("([^"]+)"\)\s*==\s*true/)?.[1] || '',
+    [effectiveExpr]
+  )
+  const requestParams = useMemo(
+    () => thinkingParamPath ? { [thinkingParamPath]: thinkingEnabled } : {},
+    [thinkingEnabled, thinkingParamPath]
+  )
 
   const result = useMemo(
     () =>
-      evalExprLocally(effectiveExpr, promptTokens, completionTokens, extras),
-    [effectiveExpr, promptTokens, completionTokens, extras]
+      evalExprLocally(effectiveExpr, promptTokens, completionTokens, extras, requestParams),
+    [effectiveExpr, promptTokens, completionTokens, extras, requestParams]
   )
   const comparisonResult = useMemo(
     () => comparisonExpr
-      ? evalExprLocally(comparisonExpr, promptTokens, completionTokens, extras)
+      ? evalExprLocally(comparisonExpr, promptTokens, completionTokens, extras, requestParams)
       : null,
-    [comparisonExpr, promptTokens, completionTokens, extras]
+    [comparisonExpr, promptTokens, completionTokens, extras, requestParams]
   )
   const discountedCost = result.cost * priceMultiplier
   const costDifference = comparisonResult && !comparisonResult.error
@@ -1506,6 +1627,20 @@ function CostEstimator({ effectiveExpr, currency, comparisonExpr, priceMultiplie
           />
         </div>
       </div>
+      {thinkingParamPath && (
+        <div className='max-w-xs space-y-1'>
+          <Label className='text-xs'>{t('Preview request mode')}</Label>
+          <select
+            className='flex h-9 w-full rounded-md border bg-background px-3 text-sm'
+            value={thinkingEnabled ? 'thinking' : 'standard'}
+            onChange={(event) => setThinkingEnabled(event.target.value === 'thinking')}
+          >
+            <option value='standard'>{t('Non-thinking mode')}</option>
+            <option value='thinking'>{t('Thinking mode')}</option>
+          </select>
+          <p className='text-muted-foreground text-xs'>{thinkingParamPath}</p>
+        </div>
+      )}
       {usesExtras && (
         <div className='grid grid-cols-2 gap-3'>
           {BILLING_EXTRA_VARS.map((variable) => {
@@ -1513,10 +1648,9 @@ function CostEstimator({ effectiveExpr, currency, comparisonExpr, priceMultiplie
             // guaranteed to have a non-null `field` (the `len` condition-only
             // variable is filtered out). Narrow the type here for safety.
             if (!variable.field) return null
-            const stateKey = variable.field.replace(
-              'Price',
-              'Tokens'
-            ) as keyof ExtraTokenValues
+            const stateKey = (variable.key === 'aud_s'
+              ? 'audioDurationSeconds'
+              : variable.field.replace('Price', 'Tokens')) as keyof ExtraTokenValues
             return (
               <div key={variable.key} className='space-y-1'>
                 <Label className='text-xs'>{t(variable.shortLabel)}</Label>
@@ -1594,11 +1728,13 @@ Input side:
 - cc — cache-create token count (5-min TTL)
 - cc1h — cache-create token count (1-hour TTL, Claude-specific)
 - img — image input token count
+- vid — video input token count
 - ai — audio input token count
 
 Output side:
 - c — output token count. Also auto-excludes sub-categories priced separately
 - img_o — image output token count
+- vid_o — video output token count
 - ao — audio output token count
 
 ### p/c Auto-exclusion

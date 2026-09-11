@@ -63,8 +63,11 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, params TokenP
 		"cc1h":  params.CC1h,
 		"img":   params.Img,
 		"img_o": params.ImgO,
+		"vid":   params.VI,
+		"vid_o": params.VO,
 		"ai":    params.AI,
 		"ao":    params.AO,
+		"aud_s": params.AS,
 		"tier": func(name string, value float64) float64 {
 			trace.MatchedTier = name
 			trace.Cost = value
