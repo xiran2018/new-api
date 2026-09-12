@@ -1697,6 +1697,11 @@ function CostEstimator({ effectiveExpr, currency, comparisonExpr, priceMultiplie
                 )}
               </span>
             )}
+            {!comparisonExpr && (
+              <span className='text-muted-foreground text-xs'>
+                {t('Vendor price is not set')}
+              </span>
+            )}
             {result.matchedTier && (
               <Badge variant='outline' className='text-xs'>
                 {t('Hit tier')}: {result.matchedTier}

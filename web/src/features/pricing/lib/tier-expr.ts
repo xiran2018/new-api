@@ -367,6 +367,11 @@ export function evalExprLocally(
       ceil: Math.ceil,
       floor: Math.floor,
       param: (path: string) => requestParams[path],
+      // Request-usage expressions are also editable in the generic expression
+      // tab. The token estimator has no media request facts, so use zero rather
+      // than throwing "u is not defined". The advanced media editor remains
+      // the authoritative preview for these rules.
+      u: (_name: string) => 0,
     }
     for (const field of ESTIMATOR_VARS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0
