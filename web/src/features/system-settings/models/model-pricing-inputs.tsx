@@ -44,6 +44,7 @@ export function PriceInput(props: {
   onChange: (value: string) => void
   vendorPriceUSD?: number
   priceMultiplier?: number
+  showMissingVendorPrice?: boolean
 }) {
   const { t } = useTranslation()
   const entered = Number(props.value)
@@ -83,6 +84,11 @@ export function PriceInput(props: {
           )}
         </div>
       )}
+      {props.showMissingVendorPrice && props.vendorPriceUSD == null && (
+        <div className='shrink-0 text-xs text-muted-foreground'>
+          {t('Vendor price is not set')}
+        </div>
+      )}
     </div>
   )
 }
@@ -101,6 +107,7 @@ export function PriceLane(props: {
   onChange: (value: string) => void
   vendorPriceUSD?: number
   priceMultiplier?: number
+  showMissingVendorPrice?: boolean
 }) {
   const { t } = useTranslation()
   const controlId = useId()
@@ -135,6 +142,7 @@ export function PriceLane(props: {
         onChange={props.onChange}
         vendorPriceUSD={props.vendorPriceUSD}
         priceMultiplier={props.priceMultiplier}
+        showMissingVendorPrice={props.showMissingVendorPrice}
       />
       {!props.compact && (
         <p className='text-muted-foreground text-xs'>

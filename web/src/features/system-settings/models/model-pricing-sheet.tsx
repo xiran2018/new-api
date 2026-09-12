@@ -112,6 +112,7 @@ type ModelPricingSheetProps = {
   priceComparison?: Partial<Record<'input' | LaneKey | 'request', number>>
   priceMultiplier?: number
   expressionComparison?: string
+  showMissingVendorPrice?: boolean
 }
 
 type ModelPricingEditorPanelProps = Omit<
@@ -158,6 +159,7 @@ export const ModelPricingSheet = forwardRef<
     priceComparison,
     priceMultiplier,
     expressionComparison,
+    showMissingVendorPrice,
   },
   ref
 ) {
@@ -185,6 +187,7 @@ export const ModelPricingSheet = forwardRef<
           priceComparison={priceComparison}
           priceMultiplier={priceMultiplier}
           expressionComparison={expressionComparison}
+          showMissingVendorPrice={showMissingVendorPrice}
           className='h-full rounded-none border-0'
         />
       </SheetContent>
@@ -207,6 +210,7 @@ export const ModelPricingEditorPanel = forwardRef<
     priceComparison,
     priceMultiplier = 1,
     expressionComparison,
+    showMissingVendorPrice,
     pricingHeaderAction,
     additionalPricingTab,
     additionalPricingActive = false,
@@ -850,6 +854,7 @@ export const ModelPricingEditorPanel = forwardRef<
                           onChange={handlePromptPriceChange}
                           vendorPriceUSD={priceComparison?.input}
                           priceMultiplier={priceMultiplier}
+                          showMissingVendorPrice={showMissingVendorPrice}
                         />
                       </Field>
 
@@ -884,6 +889,7 @@ export const ModelPricingEditorPanel = forwardRef<
                             }
                             vendorPriceUSD={priceComparison?.[lane.key]}
                             priceMultiplier={priceMultiplier}
+                            showMissingVendorPrice={showMissingVendorPrice}
                           />
                         )
                       })}
@@ -930,6 +936,11 @@ export const ModelPricingEditorPanel = forwardRef<
                                   })()}
                                 </div>
                               )}
+                              {showMissingVendorPrice && priceComparison?.request == null && (
+                                <div className='text-muted-foreground text-xs'>
+                                  {t('Vendor price is not set')}
+                                </div>
+                              )}
                               <FormDescription>
                                 {t(
                                   'Cost in {{currency}} per request, regardless of tokens used.',
@@ -946,6 +957,11 @@ export const ModelPricingEditorPanel = forwardRef<
 
                   <TabsContent value='tiered_expr' className='pt-0'>
                     <FieldGroup className='gap-5'>
+                      {showMissingVendorPrice && !expressionComparison && (
+                        <div className='text-muted-foreground text-xs'>
+                          {t('Vendor price is not set')}
+                        </div>
+                      )}
                       {taskUsageSchema ? (
                         <TaskUsagePricingEditor
                           currency={currency}
@@ -968,6 +984,7 @@ export const ModelPricingEditorPanel = forwardRef<
                           onRequestRuleExprChange={setRequestRuleExpr}
                           comparisonExpr={expressionComparison}
                           priceMultiplier={priceMultiplier}
+                          showMissingVendorPrice={showMissingVendorPrice}
                         />
                       )}
                     </FieldGroup>

@@ -560,6 +560,7 @@ type PriceFieldProps = {
   vendorPrice?: number
   priceMultiplier?: number
   cnyExchangeRate?: number
+  showMissingVendorPrice?: boolean
 }
 
 function PriceField({
@@ -571,6 +572,7 @@ function PriceField({
   vendorPrice,
   priceMultiplier = 1,
   cnyExchangeRate,
+  showMissingVendorPrice,
 }: PriceFieldProps) {
   const id = useId()
   const { t } = useTranslation()
@@ -603,6 +605,11 @@ function PriceField({
           </span>
         </p>
       )}
+      {showMissingVendorPrice && vendorPrice == null && (
+        <p className='text-muted-foreground text-xs'>
+          {t('Vendor price is not set')}
+        </p>
+      )}
       {hint && <p className='text-muted-foreground text-xs'>{hint}</p>}
     </div>
   )
@@ -623,6 +630,7 @@ type VisualTierCardProps = {
   comparisonTier?: VisualTier
   priceMultiplier?: number
   cnyExchangeRate?: number
+  showMissingVendorPrice?: boolean
 }
 
 function VisualTierCard({
@@ -636,6 +644,7 @@ function VisualTierCard({
   comparisonTier,
   priceMultiplier = 1,
   cnyExchangeRate,
+  showMissingVendorPrice,
 }: VisualTierCardProps) {
   const { t } = useTranslation()
   const cacheMode = getTierCacheMode(tier)
@@ -704,6 +713,7 @@ function VisualTierCard({
         vendorPrice={comparisonTier ? unitCostToPrice((comparisonTier[fieldKey] as number | undefined) ?? 0) : undefined}
         priceMultiplier={priceMultiplier}
         cnyExchangeRate={cnyExchangeRate}
+        showMissingVendorPrice={showMissingVendorPrice}
       />
     )
   }
@@ -790,6 +800,7 @@ function VisualTierCard({
               vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.input_unit_cost) : undefined}
               priceMultiplier={priceMultiplier}
               cnyExchangeRate={cnyExchangeRate}
+              showMissingVendorPrice={showMissingVendorPrice}
             />
             <div className='space-y-2'>
               <Tabs
@@ -832,6 +843,7 @@ function VisualTierCard({
                   vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.output_unit_cost) : undefined}
                   priceMultiplier={priceMultiplier}
                   cnyExchangeRate={cnyExchangeRate}
+                  showMissingVendorPrice={showMissingVendorPrice}
                 />
                 {tier.thinking_output_enabled && (
                   <PriceField
@@ -842,6 +854,7 @@ function VisualTierCard({
                     vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.thinking_output_unit_cost ?? comparisonTier.output_unit_cost) : undefined}
                     priceMultiplier={priceMultiplier}
                     cnyExchangeRate={cnyExchangeRate}
+                    showMissingVendorPrice={showMissingVendorPrice}
                   />
                 )}
               </div>
@@ -946,6 +959,7 @@ function VisualTierCard({
                 vendorPrice={comparisonTier ? comparisonCoefficient / 1_000_000 : undefined}
                 priceMultiplier={priceMultiplier}
                 cnyExchangeRate={cnyExchangeRate}
+                showMissingVendorPrice={showMissingVendorPrice}
               />
             )
           })}
@@ -967,9 +981,10 @@ type VisualEditorProps = {
   comparisonConfig?: VisualConfig | null
   priceMultiplier?: number
   cnyExchangeRate?: number
+  showMissingVendorPrice?: boolean
 }
 
-function VisualEditor({ visualConfig, onChange, currency, comparisonConfig, priceMultiplier, cnyExchangeRate }: VisualEditorProps) {
+function VisualEditor({ visualConfig, onChange, currency, comparisonConfig, priceMultiplier, cnyExchangeRate, showMissingVendorPrice }: VisualEditorProps) {
   const { t } = useTranslation()
   const config = useMemo(
     () => normalizeVisualConfig(visualConfig),
@@ -1059,6 +1074,7 @@ function VisualEditor({ visualConfig, onChange, currency, comparisonConfig, pric
           }
           priceMultiplier={priceMultiplier}
           cnyExchangeRate={cnyExchangeRate}
+          showMissingVendorPrice={showMissingVendorPrice}
         />
       ))}
       <Button
@@ -1878,6 +1894,7 @@ export type TieredPricingEditorProps = {
   comparisonExpr?: string
   priceMultiplier?: number
   cnyExchangeRate?: number
+  showMissingVendorPrice?: boolean
 }
 
 type EditorMode = 'visual' | 'raw'
@@ -1892,6 +1909,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
   comparisonExpr,
   priceMultiplier = 1,
   cnyExchangeRate,
+  showMissingVendorPrice,
 }: TieredPricingEditorProps) {
   const { t } = useTranslation()
   const [editorMode, setEditorMode] = useState<EditorMode>(() =>
@@ -2077,6 +2095,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
             comparisonConfig={comparisonConfig}
             priceMultiplier={priceMultiplier}
             cnyExchangeRate={cnyExchangeRate}
+            showMissingVendorPrice={showMissingVendorPrice}
           />
         ) : (
           <RawExprEditor exprString={rawExpr} onChange={handleRawChange} />
