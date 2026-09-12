@@ -22,3 +22,12 @@ func TestValidateModelPricingRejectsUnknownSynchronousUsageMeter(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "no task plugin usage schema")
 }
+
+func TestValidateModelPricingAcceptsTTSCharacterUsageRules(t *testing.T) {
+	expression := `tier("tts", u("tts_input_characters") * 80 + u("tts_output_characters") * 20)`
+	err := ValidateModelPricing("qwen3-tts-flash", PricingValues{
+		"billing_setting.billing_mode": "tiered_expr",
+		"billing_setting.billing_expr": expression,
+	})
+	require.NoError(t, err)
+}

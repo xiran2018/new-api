@@ -110,3 +110,9 @@ func TestSmokeTestRequestUsageExprAcceptsDynamicImageRules(t *testing.T) {
 	require.True(t, IsRequestUsageExpr(expression))
 	require.False(t, IsRequestUsageExpr(`tier("custom", u("undeclared") * 1)`))
 }
+
+func TestSmokeTestRequestUsageExprAcceptsTTSCharacterPrices(t *testing.T) {
+	expression := `tier("tts", u("tts_input_characters") * 80 + u("tts_output_characters") * 20)`
+	require.NoError(t, SmokeTestRequestUsageExpr(expression))
+	require.True(t, IsRequestUsageExpr(expression))
+}
