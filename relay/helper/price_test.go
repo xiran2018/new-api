@@ -68,8 +68,7 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
 }
 
-func TestModelPriceHelperTieredImageResolutionPricing(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+func TestFixedPricePreConsumeAndRealtimeRejection(t *testing.T) {
 	saved := map[string]string{}
 	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
 		saved[key] = value
@@ -77,25 +76,37 @@ func TestModelPriceHelperTieredImageResolutionPricing(t *testing.T) {
 	}))
 	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(saved)) })
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"billing_setting.billing_mode":    `{"image-matrix":"tiered_expr"}`,
-		"billing_setting.billing_expr":    `{"image-matrix":"u(\"resolution_tier\") == \"2K\" ? tier(\"2K\", u(\"input_images\") * 20000 + u(\"output_images\") * 500000) : tier(\"1K\", u(\"input_images\") * 20000 + u(\"output_images\") * 250000)"}`,
-		"group_ratio_setting.group_ratio": `{"default":1}`,
+		"billing_setting.billing_mode":    `{"fixed-test":"tiered_expr"}`,
+		"billing_setting.billing_expr":    `{"fixed-test":"len <= 32000 ? tier(\"short\", fixed(0.01)) : tier(\"long\", p * 2)"}`,
+		"group_ratio_setting.group_ratio": `{"default":1.5}`,
 	}))
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-	ctx.Set("group", "default")
-	info := &relaycommon.RelayInfo{
-		OriginModelName: "image-matrix",
-		UserGroup:       "default", UsingGroup: "default",
-		BillingRequestInput: &billingexpr.RequestInput{Usage: map[string]any{
-			"resolution_tier": "2K", "input_images": float64(1), "output_images": float64(2),
-		}},
+	for _, tc := range []struct {
+		name      string
+		format    types.RelayFormat
+		prompt    int
+		wantError bool
+	}{
+		{"HTTP charges once", types.RelayFormatOpenAI, 0, false},
+		{"Realtime rejects even unselected fixed branch", types.RelayFormatOpenAIRealtime, 50000, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			info := &relaycommon.RelayInfo{OriginModelName: "fixed-test", UserGroup: "default", UsingGroup: "default", RelayFormat: tc.format, BillingRequestInput: &billingexpr.RequestInput{}}
+			price, err := ModelPriceHelper(ctx, info, tc.prompt, &types.TokenCountMeta{})
+			if tc.wantError {
+				require.ErrorContains(t, err, "Realtime")
+				assert.Nil(t, info.TieredBillingSnapshot)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, 7500, price.QuotaToPreConsume)
+			require.NotNil(t, info.TieredBillingSnapshot)
+			assert.Equal(t, billingexpr.BillingUnitRequest, info.TieredBillingSnapshot.EstimatedBillingUnit)
+			require.NotNil(t, info.TieredBillingSnapshot.EstimatedFixedPrice)
+			assert.Equal(t, 0.01, *info.TieredBillingSnapshot.EstimatedFixedPrice)
+		})
 	}
-	priceData, err := ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{})
-	require.NoError(t, err)
-	require.Equal(t, 510000, priceData.QuotaToPreConsume)
-	require.Equal(t, "2K", info.TieredBillingSnapshot.EstimatedTier)
 }
 
 func TestModelPriceHelperTieredPreConsumeMaxTokensFallback(t *testing.T) {

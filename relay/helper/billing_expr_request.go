@@ -3,11 +3,13 @@ package helper
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -52,12 +54,9 @@ func BuildImageBillingExprRequestInput(request *dto.ImageRequest, headers map[st
 	}
 	resolution := normalizeImageResolution(size)
 	input.Usage = map[string]any{
-		"resolution":      resolution,
-		"resolution_tier": imageResolutionTier(resolution),
-		"input_images":    float64(inputImages),
-		"output_images":   float64(count),
-		"count":           float64(count),
-		"characters":      float64(utf8.RuneCountInString(request.Prompt)),
+		"resolution": resolution, "resolution_tier": imageResolutionTier(resolution),
+		"input_images": float64(inputImages), "output_images": float64(count),
+		"count": float64(count), "characters": float64(utf8.RuneCountInString(request.Prompt)),
 	}
 	if strings.TrimSpace(request.Quality) != "" {
 		input.Usage["quality"] = strings.TrimSpace(request.Quality)
@@ -66,24 +65,16 @@ func BuildImageBillingExprRequestInput(request *dto.ImageRequest, headers map[st
 	return input, nil
 }
 
-// BuildAudioBillingExprRequestInput exposes TTS input length to expression
-// billing. utf8.RuneCountInString counts user-visible Unicode code points
-// instead of UTF-8 bytes, matching providers that publish per-character rates.
 func BuildAudioBillingExprRequestInput(request *dto.AudioRequest, headers map[string]string) (billingexpr.RequestInput, error) {
 	input, err := BuildBillingExprRequestInputFromRequest(request, headers)
 	if err != nil || request == nil {
 		return input, err
 	}
-	input.Usage = map[string]any{
-		"characters":            float64(utf8.RuneCountInString(request.Input)),
-		"tts_input_characters":  float64(utf8.RuneCountInString(request.Input)),
-		"tts_output_characters": float64(utf8.RuneCountInString(request.Input)),
-	}
+	characters := float64(utf8.RuneCountInString(request.Input))
+	input.Usage = map[string]any{"characters": characters, "tts_input_characters": characters, "tts_output_characters": characters}
 	return input, nil
 }
 
-// UpdateImageBillingUsageCount replaces the request estimate with the actual
-// number of images returned by the upstream before tiered settlement.
 func UpdateImageBillingUsageCount(info *relaycommon.RelayInfo, count int64) {
 	if info == nil || info.BillingRequestInput == nil || count <= 0 || count > int64(dto.MaxImageN) {
 		return
@@ -109,7 +100,6 @@ func addImageUsageScalars(usage map[string]any, prefix string, values map[string
 		switch typed := value.(type) {
 		case string, bool, float64:
 			usage[name] = typed
-			// Top-level aliases make common vendor parameters easier to configure.
 			if prefix == "parameters" {
 				if _, exists := usage[key]; !exists {
 					usage[key] = typed
@@ -118,8 +108,7 @@ func addImageUsageScalars(usage map[string]any, prefix string, values map[string
 		case map[string]any:
 			encoded := make(map[string]json.RawMessage, len(typed))
 			for childKey, childValue := range typed {
-				childRaw, err := json.Marshal(childValue)
-				if err == nil {
+				if childRaw, err := json.Marshal(childValue); err == nil {
 					encoded[childKey] = childRaw
 				}
 			}
@@ -140,8 +129,7 @@ func countJSONImages(raw json.RawMessage) int {
 }
 
 func normalizeImageResolution(size string) string {
-	normalized := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(size), "*", "X"))
-	return normalized
+	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(size), "*", "X"))
 }
 
 func imageResolutionTier(normalized string) string {
@@ -169,9 +157,7 @@ func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.Re
 	if info != nil && info.BillingRequestInput != nil {
 		input := cloneRequestInput(*info.BillingRequestInput)
 		merged := cloneStringMap(info.RequestHeaders)
-		for k, v := range input.Headers {
-			merged[k] = v
-		}
+		maps.Copy(merged, input.Headers)
 		input.Headers = merged
 		return input, nil
 	}
@@ -186,6 +172,39 @@ func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.Re
 		return billingexpr.RequestInput{}, err
 	}
 	input.Body = bodyBytes
+	return input, nil
+}
+
+// ResolveImageBillingRequestInput freezes only the validated scalar image
+// parameters needed by pricing. Image files, prompts and base64 payloads are
+// deliberately excluded, including for multipart edits.
+func ResolveImageBillingRequestInput(c *gin.Context, info *relaycommon.RelayInfo, input billingexpr.RequestInput) (billingexpr.RequestInput, error) {
+	request, ok := info.Request.(*dto.ImageRequest)
+	if !ok {
+		return input, nil
+	}
+	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
+	if info.ChannelMeta != nil {
+		channelType = info.ChannelType
+	}
+	count, err := request.ImageCount(channelType == constant.ChannelTypeAli)
+	if err != nil {
+		return input, err
+	}
+	topLevelCount, err := request.ImageCount(false)
+	if err != nil {
+		return input, err
+	}
+	body := map[string]any{"model": request.Model, "n": topLevelCount, "size": request.Size, "quality": request.Quality}
+	if request.BillingParameters != nil {
+		body["parameters"] = request.BillingParameters
+	}
+	encoded, err := common.Marshal(body)
+	if err != nil {
+		return input, err
+	}
+	input.Body = encoded
+	input.ImageCount = &count
 	return input, nil
 }
 
@@ -219,23 +238,15 @@ func readIncomingBillingExprBody(c *gin.Context) ([]byte, error) {
 func cloneRequestInput(src billingexpr.RequestInput) billingexpr.RequestInput {
 	input := billingexpr.RequestInput{
 		Headers: cloneStringMap(src.Headers),
-		Usage:   cloneUsageMap(src.Usage),
+	}
+	if src.ImageCount != nil {
+		count := *src.ImageCount
+		input.ImageCount = &count
 	}
 	if len(src.Body) > 0 {
 		input.Body = append([]byte(nil), src.Body...)
 	}
 	return input
-}
-
-func cloneUsageMap(src map[string]any) map[string]any {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make(map[string]any, len(src))
-	for key, value := range src {
-		dst[key] = value
-	}
-	return dst
 }
 
 func isJSONContentType(contentType string) bool {
