@@ -208,6 +208,19 @@ export function useModelsColumns(
       ),
     },
     {
+      accessorKey: 'api_enabled',
+      header: t('API availability'),
+      size: 110,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <StatusBadge
+          variant={row.original.api_enabled ? 'success' : 'neutral'}
+          label={row.original.api_enabled ? t('Enabled') : t('Disabled')}
+          copyable={false}
+        />
+      ),
+    },
+    {
       id: 'connections',
       header: t('Channels and groups'),
       size: 180,

@@ -106,6 +106,7 @@ export function ModelMutateDrawer(props: {
     defaultValues: transformModelToFormDefaults({
       model_name: '',
       status: 1,
+      api_enabled: false,
       sync_official: 1,
       name_rule: 0,
     } as Model),
@@ -157,6 +158,7 @@ export function ModelMutateDrawer(props: {
           : {
               model_name: currentRow?.model_name ?? '',
               status: 1,
+              api_enabled: false,
               sync_official: 1,
               name_rule: 0,
             }) as Model
@@ -532,13 +534,46 @@ export function ModelMutateDrawer(props: {
                               </FormLabel>
                               <FormDescription>
                                 {t(
-                                  'Controls visibility in the model square. Channel status and existing API access are unchanged.'
+                                  'Controls visibility in the model square. Hiding the model also disables API calls.'
                                 )}
                               </FormDescription>
                             </div>
                             <FormControl>
                               <Switch
                                 checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked)
+                                  if (!checked) {
+                                    form.setValue('api_enabled', false, {
+                                      shouldDirty: true,
+                                    })
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='api_enabled'
+                        render={({ field }) => (
+                          <FormItem className={sideDrawerSwitchItemClassName()}>
+                            <div className='flex flex-col gap-0.5'>
+                              <FormLabel className='text-base'>
+                                {t('Allow API calls')}
+                              </FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'Disabled by default. Users can call this model only after an administrator enables it.'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                disabled={!form.watch('status')}
                                 onCheckedChange={field.onChange}
                               />
                             </FormControl>

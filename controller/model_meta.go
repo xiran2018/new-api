@@ -136,8 +136,12 @@ func UpdateModelMeta(c *gin.Context) {
 			common.ApiErrorMsg(c, "invalid catalog visibility")
 			return
 		}
-		// 只更新状态，防止误清空其他字段
-		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Update("status", m.Status).Error; err != nil {
+		// 隐藏模型时同步关闭 API，避免展示与调用状态冲突。
+		updates := map[string]any{"status": m.Status}
+		if m.Status == 0 {
+			updates["api_enabled"] = false
+		}
+		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Updates(updates).Error; err != nil {
 			common.ApiError(c, err)
 			return
 		}

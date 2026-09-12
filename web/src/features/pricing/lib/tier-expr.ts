@@ -37,6 +37,8 @@ export type VisualTier = {
   thinking_output_unit_cost?: number
   thinking_param_path?: string
   audio_output_only?: boolean
+  multimodal_output_enabled?: boolean
+  multimodal_output_unit_cost?: number
   cache_mode: CacheMode
   cache_read_unit_cost?: number
   cache_create_unit_cost?: number
@@ -76,6 +78,8 @@ export function normalizeVisualTier(
     thinking_output_unit_cost: Number(tier.thinking_output_unit_cost) || 0,
     thinking_param_path: String(tier.thinking_param_path || 'enable_thinking'),
     audio_output_only: Boolean(tier.audio_output_only),
+    multimodal_output_enabled: Boolean(tier.multimodal_output_enabled),
+    multimodal_output_unit_cost: Number(tier.multimodal_output_unit_cost) || 0,
     cache_mode: getTierCacheMode(tier),
     conditions: Array.isArray(tier.conditions) ? tier.conditions : [],
     ...tier,
@@ -131,7 +135,10 @@ function buildTierBodyExpr(tier: VisualTier): string {
   const ic = Number(tier.input_unit_cost) || 0
   const oc = Number(tier.output_unit_cost) || 0
   parts.push(`p * ${ic}`)
-  if (tier.audio_output_only) {
+  if (tier.multimodal_output_enabled) {
+    const multimodalPrice = Number(tier.multimodal_output_unit_cost) || 0
+    parts.push(`c * (ao > 0 ? 0 : (img + ai + vid > 0 ? ${multimodalPrice} : ${oc}))`)
+  } else if (tier.audio_output_only) {
     parts.push(`c * (ao > 0 ? 0 : ${oc})`)
   } else if (tier.thinking_output_enabled) {
     const path = JSON.stringify(tier.thinking_param_path || 'enable_thinking')
@@ -192,7 +199,16 @@ export function tryParseVisualConfig(
     if (versionMatch) body = versionMatch[1]
     const thinkingOutputs: Record<number, { path: string; thinking: number }> = {}
     const audioOnlyOutputs = new Set<number>()
+    const multimodalOutputs: Record<number, number> = {}
     const numeric = '([\\d.eE+-]+)'
+    body = body.replace(
+      new RegExp(`c\\s*\\*\\s*\\(\\s*ao\\s*>\\s*0\\s*\\?\\s*0\\s*:\\s*\\(\\s*img\\s*\\+\\s*ai\\s*\\+\\s*vid\\s*>\\s*0\\s*\\?\\s*${numeric}\\s*:\\s*${numeric}\\s*\\)\\s*\\)`, 'g'),
+      (_match, multimodal: string, standard: string, offset: number) => {
+        const tierIndex = Math.max(0, (body.slice(0, offset).match(/tier\(/g) || []).length - 1)
+        multimodalOutputs[tierIndex] = Number(multimodal)
+        return `c * ${standard}`
+      }
+    )
     body = body.replace(
       new RegExp(`c\\s*\\*\\s*\\(\\s*ao\\s*>\\s*0\\s*\\?\\s*0\\s*:\\s*${numeric}\\s*\\)`, 'g'),
       (_match, standard: string, offset: number) => {
@@ -232,6 +248,10 @@ export function tryParseVisualConfig(
         tier.thinking_param_path = thinkingOutputs[0].path
       }
       if (audioOnlyOutputs.has(0)) tier.audio_output_only = true
+      if (multimodalOutputs[0] != null) {
+        tier.multimodal_output_enabled = true
+        tier.multimodal_output_unit_cost = multimodalOutputs[0]
+      }
       BILLING_CACHE_VAR_MAP.forEach((cv, i) => {
         const val = simple[4 + i]
         if (val != null) tier[cv.field] = Number(val)
@@ -278,6 +298,10 @@ export function tryParseVisualConfig(
         tier.thinking_param_path = thinkingOutputs[tierIndex].path
       }
       if (audioOnlyOutputs.has(tierIndex)) tier.audio_output_only = true
+      if (multimodalOutputs[tierIndex] != null) {
+        tier.multimodal_output_enabled = true
+        tier.multimodal_output_unit_cost = multimodalOutputs[tierIndex]
+      }
       tierIndex += 1
       const m = match
       BILLING_CACHE_VAR_MAP.forEach((cv, i) => {
@@ -298,7 +322,11 @@ export function tryParseVisualConfig(
       new RegExp(`c\\s*\\*\\s*\\(\\s*ao\\s*>\\s*0\\s*\\?\\s*0\\s*:\\s*${numeric}\\s*\\)`, 'g'),
       (_match, standard: string) => `c * ${standard}`
     )
-    if (regeneratedWithoutOutputModes.replace(/\s+/g, '') !== originalWithoutThinking.replace(/\s+/g, '')) {
+    const regeneratedWithoutMultimodalOutput = regeneratedWithoutOutputModes.replace(
+      new RegExp(`c\\s*\\*\\s*\\(\\s*ao\\s*>\\s*0\\s*\\?\\s*0\\s*:\\s*\\(\\s*img\\s*\\+\\s*ai\\s*\\+\\s*vid\\s*>\\s*0\\s*\\?\\s*${numeric}\\s*:\\s*${numeric}\\s*\\)\\s*\\)`, 'g'),
+      (_match, _multimodal: string, standard: string) => `c * ${standard}`
+    )
+    if (regeneratedWithoutMultimodalOutput.replace(/\s+/g, '') !== originalWithoutThinking.replace(/\s+/g, '')) {
       return null
     }
     return cfg

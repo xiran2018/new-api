@@ -33,6 +33,7 @@ type Model struct {
 	Endpoints          string         `json:"endpoints,omitempty" gorm:"type:text"`
 	SupportedEndpoints []string       `json:"supported_endpoints,omitempty" gorm:"-"`
 	Status             int            `json:"status" gorm:"default:1"`
+	APIEnabled         bool           `json:"api_enabled" gorm:"not null;default:false"`
 	SyncOfficial       int            `json:"sync_official" gorm:"default:1"`
 	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime        int64          `json:"updated_time" gorm:"bigint"`
@@ -54,12 +55,15 @@ func (mi *Model) Insert() error {
 		}
 		now := common.GetTimestamp()
 		mi.CreatedTime, mi.UpdatedTime = now, now
-		status, syncOfficial := mi.Status, mi.SyncOfficial
+		if mi.Status != 1 {
+			mi.APIEnabled = false
+		}
+		status, apiEnabled, syncOfficial := mi.Status, mi.APIEnabled, mi.SyncOfficial
 		if err := tx.Create(mi).Error; err != nil {
 			return err
 		}
-		mi.Status, mi.SyncOfficial = status, syncOfficial
-		return tx.Model(&Model{}).Where("id = ?", mi.Id).Updates(map[string]any{"status": status, "sync_official": syncOfficial}).Error
+		mi.Status, mi.APIEnabled, mi.SyncOfficial = status, apiEnabled, syncOfficial
+		return tx.Model(&Model{}).Where("id = ?", mi.Id).Updates(map[string]any{"status": status, "api_enabled": apiEnabled, "sync_official": syncOfficial}).Error
 	})
 }
 
@@ -77,10 +81,64 @@ func (mi *Model) Update() error {
 		if err := validateModelVendor(tx, mi.VendorID); err != nil {
 			return err
 		}
+		if mi.Status != 1 {
+			mi.APIEnabled = false
+		}
 		mi.UpdatedTime = common.GetTimestamp()
 		return tx.Model(&Model{}).Where("id = ?", mi.Id).
-			Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").Updates(mi).Error
+			Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "api_enabled", "sync_official", "name_rule", "updated_time").Updates(mi).Error
 	})
+}
+
+func SetExactModelCatalogStatus(modelName string, status int) error {
+	if status != 0 && status != 1 {
+		return errors.New("invalid catalog visibility")
+	}
+	updates := map[string]any{"status": status, "updated_time": common.GetTimestamp()}
+	if status == 0 {
+		updates["api_enabled"] = false
+	}
+	result := DB.Model(&Model{}).
+		Where("model_name = ? AND name_rule = ?", strings.TrimSpace(modelName), NameRuleExact).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	RefreshPricing()
+	return nil
+}
+
+func SetExactModelAPIEnabled(modelName string, enabled bool) error {
+	if enabled {
+		var status int
+		result := DB.Model(&Model{}).
+			Select("status").
+			Where("model_name = ? AND name_rule = ?", strings.TrimSpace(modelName), NameRuleExact).
+			Scan(&status)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		if status != 1 {
+			return errors.New("hidden models cannot enable API calls")
+		}
+	}
+	result := DB.Model(&Model{}).
+		Where("model_name = ? AND name_rule = ?", strings.TrimSpace(modelName), NameRuleExact).
+		Updates(map[string]any{"api_enabled": enabled, "updated_time": common.GetTimestamp()})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	RefreshPricing()
+	return nil
 }
 
 func (mi *Model) Delete() error {

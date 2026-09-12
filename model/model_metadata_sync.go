@@ -253,6 +253,9 @@ func ApplyMetadataSync(updates []MetadataSyncUpdate, upstreamVendors map[string]
 				}
 			}
 			fields["updated_time"] = common.GetTimestamp()
+			if status, selected := fields["status"]; selected && status != 1 {
+				fields["api_enabled"] = false
+			}
 			if update.Create {
 				fields["model_name"] = update.ModelName
 				fields["sync_official"] = 1

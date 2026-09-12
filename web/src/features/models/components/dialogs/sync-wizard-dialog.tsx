@@ -260,7 +260,7 @@ export function SyncWizardDialog(props: {
     }
     if (field === 'status') {
       return t(
-        'Changes visibility in the model square. Channel status and existing API access are unchanged.'
+        'Controls visibility in the model square. Hiding the model also disables API calls.'
       )
     }
     if (field === 'endpoints') {

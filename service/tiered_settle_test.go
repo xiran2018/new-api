@@ -816,6 +816,43 @@ func TestBuildTieredTokenParams_GPT_VideoAndAudioOnlyOutput(t *testing.T) {
 	}
 }
 
+func TestBuildTieredTokenParams_MultimodalTextAndAudioOutputPricing(t *testing.T) {
+	expr := `tier("qwen_omni", p * 1.8 + c * (ao > 0 ? 0 : (img + ai + vid > 0 ? 12.7 : 6.9)) + img * 3.3 + ai * 15.8 + vid * 3.3 + ao * 62.6)`
+	tests := []struct {
+		name  string
+		usage *dto.Usage
+		want  float64
+	}{
+		{
+			name:  "pure text",
+			usage: &dto.Usage{PromptTokens: 100, CompletionTokens: 50},
+			want:  100*1.8 + 50*6.9,
+		},
+		{
+			name:  "multimodal text output",
+			usage: &dto.Usage{PromptTokens: 140, CompletionTokens: 50, PromptTokensDetails: dto.InputTokenDetails{ImageTokens: 20, VideoTokens: 10, AudioTokens: 10}},
+			want:  100*1.8 + 20*3.3 + 10*3.3 + 10*15.8 + 50*12.7,
+		},
+		{
+			name:  "audio output only",
+			usage: &dto.Usage{PromptTokens: 100, CompletionTokens: 80, CompletionTokenDetails: dto.OutputTokenDetails{TextTokens: 50, AudioTokens: 30}},
+			want:  100*1.8 + 30*62.6,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			params := BuildTieredTokenParams(test.usage, false, billingexpr.UsedVars(expr))
+			cost, _, err := billingexpr.RunExpr(expr, params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if math.Abs(cost-test.want) > 1e-6 {
+				t.Fatalf("cost = %f, want %f", cost, test.want)
+			}
+		})
+	}
+}
+
 func TestBuildTieredTokenParams_GPT_AudioOutputNoVar(t *testing.T) {
 	usage := &dto.Usage{
 		PromptTokens:     1000,

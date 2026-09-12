@@ -45,6 +45,10 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		if modelRequest.Model != "" && !model.IsExactModelAPIEnabled(modelRequest.Model) {
+			abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
+			return
+		}
 		if pin, found, overridden := constraints.ResolvedPin(); found {
 			for _, lost := range overridden {
 				logger.LogWarn(c, fmt.Sprintf(

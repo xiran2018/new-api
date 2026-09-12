@@ -78,6 +78,27 @@ func pricingEndpointTypesFromPricing(pricings []Pricing) map[string][]constant.E
 	return byModel
 }
 
+func TestModelAPIAvailabilityIsIndependentFromCatalogVisibility(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+
+	const modelName = "managed-api-switch-model"
+	assert.False(t, IsExactModelAPIEnabled(modelName))
+	require.NoError(t, DB.Create(&Model{
+		ModelName:  modelName,
+		NameRule:   NameRuleExact,
+		Status:     1,
+		APIEnabled: false,
+	}).Error)
+	InvalidatePricingCache()
+	assert.False(t, IsExactModelAPIEnabled(modelName))
+
+	require.NoError(t, SetExactModelAPIEnabled(modelName, true))
+	assert.True(t, IsExactModelAPIEnabled(modelName))
+	require.NoError(t, SetExactModelCatalogStatus(modelName, 0))
+	assert.False(t, IsExactModelAPIEnabled(modelName))
+	assert.Error(t, SetExactModelAPIEnabled(modelName, true))
+}
+
 func TestPricingAdvancedCustomUsesConfiguredEndpointTypes(t *testing.T) {
 	resetPricingEndpointTestTables(t)
 

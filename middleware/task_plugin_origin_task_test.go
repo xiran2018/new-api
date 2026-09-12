@@ -31,11 +31,14 @@ func setupOriginTaskDB(t *testing.T) {
 	previousType := common.MainDatabaseType()
 	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&model.Task{}, &model.Channel{}))
+	require.NoError(t, database.AutoMigrate(&model.Task{}, &model.Channel{}, &model.Ability{}, &model.Model{}))
 	model.DB = database
+	require.NoError(t, model.DB.Create(&model.Model{ModelName: "resolved-model", Status: 1, APIEnabled: true}).Error)
+	model.InvalidatePricingCache()
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	t.Cleanup(func() {
 		model.DB = previousDB
+		model.InvalidatePricingCache()
 		common.SetMainDatabaseType(previousType)
 	})
 }

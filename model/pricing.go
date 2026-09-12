@@ -59,6 +59,7 @@ var (
 	// 缓存映射：模型名 -> 启用分组 / 计费类型
 	modelEnableGroups     = make(map[string][]string)
 	modelQuotaTypeMap     = make(map[string]int)
+	modelAPIEnabledMap    = make(map[string]bool)
 	modelEnableGroupsLock = sync.RWMutex{}
 )
 
@@ -79,6 +80,15 @@ func GetPricing() []Pricing {
 		}
 	}
 	return pricingMap
+}
+
+// IsExactModelAPIEnabled requires an exact metadata record and explicit enablement.
+func IsExactModelAPIEnabled(modelName string) bool {
+	GetPricing()
+	modelEnableGroupsLock.RLock()
+	defer modelEnableGroupsLock.RUnlock()
+	enabled, managed := modelAPIEnabledMap[strings.TrimSpace(modelName)]
+	return managed && enabled
 }
 
 func InvalidatePricingCache() {
@@ -464,6 +474,12 @@ func updatePricing() {
 	modelEnableGroupsLock.Lock()
 	modelEnableGroups = make(map[string][]string)
 	modelQuotaTypeMap = make(map[string]int)
+	modelAPIEnabledMap = make(map[string]bool)
+	for _, metadata := range allMeta {
+		if metadata.NameRule == NameRuleExact {
+			modelAPIEnabledMap[metadata.ModelName] = metadata.APIEnabled
+		}
+	}
 	for _, p := range pricingMap {
 		modelEnableGroups[p.ModelName] = p.EnableGroup
 		modelQuotaTypeMap[p.ModelName] = p.QuotaType

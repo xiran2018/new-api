@@ -208,6 +208,11 @@ const PRESET_GROUPS: PresetGroup[] = [
         expr: 'tier("multimodal_audio", p * 7 + c * (ao > 0 ? 0 : 40) + img * 7 + ai * 53 + vid * 7 + ao * 213)',
       },
       {
+        key: 'qwen-omni-multimodal-output',
+        label: 'Separate multimodal input and output pricing',
+        expr: 'tier("qwen_omni", p * 1.8 + c * (ao > 0 ? 0 : (img + ai + vid > 0 ? 12.7 : 6.9)) + img * 3.3 + ai * 15.8 + vid * 3.3 + ao * 62.6)',
+      },
+      {
         key: 'live-translation-multimodal',
         label: 'Live translation multimodal token pricing',
         expr: 'tier("live_translation", p * 0 + c * 10 + img * 4 + ai * 10 + ao * 40)',
@@ -683,6 +688,9 @@ function VisualTierCard({
   const thinkingOutputUnitPrice = unitCostToPrice(
     tier.thinking_output_unit_cost ?? tier.output_unit_cost
   )
+  const multimodalOutputUnitPrice = unitCostToPrice(
+    tier.multimodal_output_unit_cost ?? tier.output_unit_cost
+  )
   const hasMediaPricing = MEDIA_PRICE_VARS.some((variable) => {
     const fieldKey = variable.tierField as keyof VisualTier
     return unitCostToPrice((tier[fieldKey] as number | undefined) ?? 0) > 0
@@ -804,12 +812,13 @@ function VisualTierCard({
             />
             <div className='space-y-2'>
               <Tabs
-                value={tier.audio_output_only ? 'audio-only' : tier.thinking_output_enabled ? 'thinking' : 'unified'}
+                value={tier.multimodal_output_enabled ? 'multimodal' : tier.audio_output_only ? 'audio-only' : tier.thinking_output_enabled ? 'thinking' : 'unified'}
                 onValueChange={(value) =>
                   value !== null && onChange({
                     ...tier,
                     thinking_output_enabled: value === 'thinking',
                     audio_output_only: value === 'audio-only',
+                    multimodal_output_enabled: value === 'multimodal',
                     thinking_output_unit_cost:
                       tier.thinking_output_unit_cost ?? tier.output_unit_cost,
                     thinking_param_path: tier.thinking_param_path || 'enable_thinking',
@@ -826,6 +835,9 @@ function VisualTierCard({
                   <TabsTrigger value='audio-only' className='px-2 text-xs'>
                     {t('Audio-only output pricing')}
                   </TabsTrigger>
+                  <TabsTrigger value='multimodal' className='px-2 text-xs'>
+                    {t('Text output by input modality')}
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
               <div className='flex flex-wrap gap-x-4 gap-y-2'>
@@ -835,6 +847,8 @@ function VisualTierCard({
                     ? t('Non-thinking output price')
                     : tier.audio_output_only
                       ? t('Text output price (without audio)')
+                      : tier.multimodal_output_enabled
+                        ? t('Pure text output price')
                       : t('Output price')}
                   value={outputUnitPrice}
                   onChange={(value) =>
@@ -857,6 +871,18 @@ function VisualTierCard({
                     showMissingVendorPrice={showMissingVendorPrice}
                   />
                 )}
+                {tier.multimodal_output_enabled && (
+                  <PriceField
+                    currency={currency}
+                    label={t('Multimodal text output price')}
+                    value={multimodalOutputUnitPrice}
+                    onChange={(value) => handlePriceChange('multimodal_output_unit_cost', priceToUnitCost(value))}
+                    vendorPrice={comparisonTier ? unitCostToPrice(comparisonTier.multimodal_output_unit_cost ?? comparisonTier.output_unit_cost) : undefined}
+                    priceMultiplier={priceMultiplier}
+                    cnyExchangeRate={cnyExchangeRate}
+                    showMissingVendorPrice={showMissingVendorPrice}
+                  />
+                )}
               </div>
               {tier.thinking_output_enabled && (
                 <div className='max-w-sm space-y-1'>
@@ -872,6 +898,11 @@ function VisualTierCard({
               {tier.audio_output_only && (
                 <p className='text-muted-foreground max-w-md text-xs'>
                   {t('When audio output tokens are present, text output tokens are not charged; only the audio output price is used.')}
+                </p>
+              )}
+              {tier.multimodal_output_enabled && (
+                <p className='text-muted-foreground max-w-xl text-xs'>
+                  {t('Pure text requests use the pure text output price; requests containing image, video, or audio input use the multimodal text output price. When audio is generated, text output is not charged and only audio output is billed.')}
                 </p>
               )}
             </div>
