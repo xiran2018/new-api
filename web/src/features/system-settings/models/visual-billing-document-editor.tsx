@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ChevronDown } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableRowActionMenu } from '@/components/data-table'
@@ -55,7 +55,6 @@ type PricingNodeProps = {
   currency: PricingCurrency
   issues: VisualBillingIssue[]
   onChange: (node: VisualPricingNode) => void
-  renderPriceAddon?: (field: { key: string; scope?: string; value: string }) => ReactNode
 }
 
 function PricingTierFields(
@@ -134,7 +133,6 @@ function PricingTierFields(
           issue.id.slice(node.id.length + 1)
         )}
         scope={node.label}
-        renderPriceAddon={props.renderPriceAddon}
         onChange={(variable, value) =>
           props.onChange({
             ...node,
@@ -381,7 +379,6 @@ export function VisualBillingDocumentEditor(props: {
   currency: PricingCurrency
   issues: VisualBillingIssue[]
   onChange: (document: VisualBillingDocument) => void
-  renderPriceAddon?: (field: { key: string; scope?: string; value: string }) => ReactNode
 }) {
   const { t } = useTranslation()
   return (
@@ -399,7 +396,6 @@ export function VisualBillingDocumentEditor(props: {
         source={props.document.source}
         currency={props.currency}
         issues={props.issues}
-        renderPriceAddon={props.renderPriceAddon}
         onChange={(root) => props.onChange({ ...props.document, root })}
       />
     </div>

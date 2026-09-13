@@ -28,13 +28,21 @@ import {
 type Origin = { id: string; origin?: ExpressionNode }
 export type VisualComparison = Origin & {
   kind: 'comparison'
-  probe: 'p' | 'c' | 'len' | TimeFunction
+  probe: TokenVariable | TimeFunction
   timezone: string
   operator: '<' | '<=' | '>' | '>=' | '==' | '!='
   value: string
 }
+export type VisualRequestComparison = Origin & {
+  kind: 'request-comparison'
+  source: 'param' | 'header'
+  path: string
+  operator: '==' | '!='
+  value: string | boolean
+}
 export type VisualCondition =
   | VisualComparison
+  | VisualRequestComparison
   | (Origin & { kind: 'all'; children: VisualCondition[] })
   | (Origin & { kind: 'any'; children: VisualCondition[] })
   | (Origin & { kind: 'not'; child: VisualCondition })
@@ -103,6 +111,26 @@ function readVisualCondition(node: ExpressionNode): VisualCondition | null {
     }
   }
   if (
+    node.kind === 'binary' &&
+    ['==', '!='].includes(node.operator) &&
+    node.left.kind === 'call' &&
+    ['param', 'header'].includes(node.left.name) &&
+    node.left.args[0]?.kind === 'literal' &&
+    typeof node.left.args[0].value === 'string' &&
+    node.right.kind === 'literal' &&
+    (typeof node.right.value === 'string' ||
+      typeof node.right.value === 'boolean')
+  ) {
+    return {
+      ...identity,
+      kind: 'request-comparison',
+      source: node.left.name as 'param' | 'header',
+      path: node.left.args[0].value,
+      operator: node.operator as '==' | '!=',
+      value: node.right.value,
+    }
+  }
+  if (
     node.kind !== 'binary' ||
     !COMPARISONS.has(node.operator) ||
     node.right.kind !== 'literal' ||
@@ -112,11 +140,8 @@ function readVisualCondition(node: ExpressionNode): VisualCondition | null {
   }
   let probe: VisualComparison['probe']
   let timezone = ''
-  if (
-    node.left.kind === 'variable' &&
-    ['p', 'c', 'len'].includes(node.left.name)
-  ) {
-    probe = node.left.name as 'p' | 'c' | 'len'
+  if (node.left.kind === 'variable' && node.left.name !== 'image_count') {
+    probe = node.left.name
   } else if (
     node.left.kind === 'call' &&
     (TIME_FUNCTIONS as readonly string[]).includes(node.left.name) &&
@@ -243,6 +268,12 @@ function writeVisualCondition(
   source: string,
   issues: VisualBillingIssue[]
 ): string {
+  if (node.kind === 'request-comparison') {
+    if (!node.path.trim()) {
+      issues.push({ id: node.id, message: 'Enter a request field.' })
+    }
+    return `${node.source}(${JSON.stringify(node.path.trim())}) ${node.operator} ${JSON.stringify(node.value)}`
+  }
   if (node.kind === 'not') {
     const child = writeVisualCondition(node.child, source, issues)
     if (

@@ -108,6 +108,11 @@ import {
   type PricingMode,
 } from './model-pricing-core'
 import { PriceInput, PriceLane } from './model-pricing-inputs'
+import {
+  PricingFieldAddon,
+  PricingFieldAddonProvider,
+  type PricingFieldAddonRenderer,
+} from '@/platform/model-prices/pricing-field-addon'
 import { formatPricingNumber } from './pricing-format'
 import { TaskPluginPricingEditor } from './task-plugin-pricing-editor'
 import { TaskUsagePricingEditor } from './task-usage-pricing-editor'
@@ -124,7 +129,7 @@ type ModelPricingSheetProps = {
   usageSchema?: BillingUsageSchema
   pluginVariants?: ModelPricingPluginVariant[]
   onDirtyChange?: (dirty: boolean) => void
-  renderPriceAddon?: (field: { key: string; scope?: string; value: string }) => ReactNode
+  renderPriceAddon?: PricingFieldAddonRenderer
 }
 
 type ModelPricingEditorPanelProps = Omit<
@@ -834,7 +839,6 @@ export const ModelPricingEditorPanel = forwardRef<
       requestRuleExpr={requestRuleExpr}
       onBillingExprChange={setBillingExpr}
       onRequestRuleExprChange={setRequestRuleExpr}
-      renderPriceAddon={renderPriceAddon}
     />
   )
 
@@ -859,6 +863,7 @@ export const ModelPricingEditorPanel = forwardRef<
         </div>
       )}
 
+      <PricingFieldAddonProvider renderer={renderPriceAddon}>
       <Form {...form}>
         <form
           ref={formElementRef}
@@ -1088,7 +1093,7 @@ export const ModelPricingEditorPanel = forwardRef<
                             value={promptPrice}
                             placeholder='3'
                             onChange={handlePromptPriceChange}
-                            addon={renderPriceAddon?.({ key: 'input', value: promptPrice })}
+                            addonKey='input'
                           />
                         </Field>
 
@@ -1121,7 +1126,7 @@ export const ModelPricingEditorPanel = forwardRef<
                               onChange={(value) =>
                                 handleLanePriceChange(lane.key, value)
                               }
-                              addon={renderPriceAddon?.({ key: lane.key, value: lanePrices[lane.key] })}
+                              addonKey={lane.key}
                             />
                           )
                         })}
@@ -1155,7 +1160,7 @@ export const ModelPricingEditorPanel = forwardRef<
                                     {t('per request')}
                                   </InputGroupAddon>
                                 </InputGroup>
-                                {renderPriceAddon?.({ key: 'request', value: field.value ?? '' })}
+                                <PricingFieldAddon key='request' value={field.value ?? ''} />
                                 <FormDescription>
                                   {t(
                                     'Cost in {{currency}} per request, regardless of tokens used.',
@@ -1238,6 +1243,7 @@ export const ModelPricingEditorPanel = forwardRef<
           )}
         </form>
       </Form>
+      </PricingFieldAddonProvider>
       {conversionPreview && (
         <PricingConversionDialog
           preview={conversionPreview}

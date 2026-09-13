@@ -70,6 +70,9 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	ai := float64(usage.PromptTokensDetails.AudioTokens)
 	imgO := float64(usage.CompletionTokenDetails.ImageTokens)
 	ao := float64(usage.CompletionTokenDetails.AudioTokens)
+	vi := float64(usage.PromptTokensDetails.VideoTokens)
+	vo := float64(usage.CompletionTokenDetails.VideoTokens)
+	audioSeconds := ai * 60 / 1000
 
 	// len = total input context length for tier condition evaluation.
 	// Non-Claude: prompt_tokens already includes everything.
@@ -101,14 +104,20 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 		if usedVars["img_cr"] {
 			p -= imgCR
 		}
-		if usedVars["ai"] {
+		if usedVars["ai"] || usedVars["aud_s"] {
 			p -= ai
+		}
+		if usedVars["vid"] {
+			p -= vi
 		}
 		if usedVars["img_o"] {
 			c -= imgO
 		}
 		if usedVars["ao"] {
 			c -= ao
+		}
+		if usedVars["vid_o"] {
+			c -= vo
 		}
 	}
 
@@ -133,6 +142,9 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 		ImgO:  imgO,
 		AI:    ai,
 		AO:    ao,
+		VI:    vi,
+		VO:    vo,
+		AS:    audioSeconds,
 	}
 }
 

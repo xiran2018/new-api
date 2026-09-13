@@ -286,6 +286,8 @@ export function evalExprLocally(
 ): EvalResult {
   if (!exprStr.trim()) return { cost: 0, matchedTier: '', error: null }
   const result = evaluateBillingExpression(exprStr, {
+    request: { body: {}, headers: {} },
+    usage: {},
     ...context,
     tokens: {
       ...buildEstimatorTokens(promptTokens, completionTokens, extraTokenValues),
@@ -313,6 +315,9 @@ export function buildEstimatorTokens(
   return {
     p: promptTokens,
     c: completionTokens,
+    vid: 0,
+    vid_o: 0,
+    aud_s: 0,
     len:
       promptTokens +
       extraTokenValues.cacheReadTokens +

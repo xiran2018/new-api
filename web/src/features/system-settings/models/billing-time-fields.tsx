@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  BILLING_VARS,
   COMMON_TIMEZONES,
   TIME_FUNCS,
 } from '@/features/pricing/lib/billing-expr'
@@ -36,7 +37,7 @@ import type { VisualComparison } from '@/features/pricing/lib/billing-expression
 
 import { DraftNumberInput } from './draft-number-input'
 
-const PROBE_LABELS = {
+const PROBE_LABELS: Record<VisualComparison['probe'], string> = {
   hour: 'Hour of day',
   minute: 'Minute',
   weekday: 'Weekday',
@@ -45,7 +46,18 @@ const PROBE_LABELS = {
   p: 'Billable input tokens',
   c: 'Billable output tokens',
   len: 'Full input length',
-} as const
+  cr: 'Cache read tokens',
+  cc: 'Cache creation tokens',
+  cc1h: '1-hour cache creation tokens',
+  img: 'Image input tokens',
+  img_cr: 'Cached image input tokens',
+  img_o: 'Image output tokens',
+  ai: 'Audio input tokens',
+  ao: 'Audio output tokens',
+  vid: 'Video input tokens',
+  vid_o: 'Video output tokens',
+  aud_s: 'Audio duration seconds',
+}
 
 export function BillingTimeProbeFields(props: {
   probe: VisualComparison['probe']
@@ -56,7 +68,13 @@ export function BillingTimeProbeFields(props: {
 }) {
   const { t } = useTranslation()
   const probes: VisualComparison['probe'][] = [...TIME_FUNCS]
-  if (props.includeTokens) probes.push('len', 'p', 'c')
+  if (props.includeTokens) {
+    probes.push(
+      ...BILLING_VARS.map((variable) => variable.key).filter(
+        (probe): probe is VisualComparison['probe'] => probe !== 'image_count'
+      )
+    )
+  }
   const isTime = (TIME_FUNCS as readonly string[]).includes(props.probe)
   const zones = COMMON_TIMEZONES.map((zone) => ({
     value: zone.value,

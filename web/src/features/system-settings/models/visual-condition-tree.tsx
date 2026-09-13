@@ -29,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -242,6 +243,82 @@ function ConditionActions(props: ConditionProps & { group: boolean }) {
 function ConditionFields(props: ConditionProps) {
   const { t } = useTranslation()
   const node = props.node
+  if (node.kind === 'request-comparison') {
+    return (
+      <div className='flex min-w-0 flex-1 flex-wrap items-center gap-2'>
+        <Select
+          items={[
+            { value: 'param', label: t('Request body field') },
+            { value: 'header', label: t('Request header') },
+          ]}
+          value={node.source}
+          onValueChange={(source) =>
+            source && props.onChange({ ...node, source })
+          }
+        >
+          <SelectTrigger
+            size='sm'
+            className='w-44'
+            aria-label={t('Condition input')}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent alignItemWithTrigger={false}>
+            <SelectItem value='param'>{t('Request body field')}</SelectItem>
+            <SelectItem value='header'>{t('Request header')}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          className='w-48'
+          aria-label={t('Request field')}
+          value={node.path}
+          onChange={(event) =>
+            props.onChange({ ...node, path: event.target.value })
+          }
+        />
+        <ComparisonOperator
+          value={node.operator}
+          onChange={(operator) =>
+            (operator === '==' || operator === '!=') &&
+            props.onChange({ ...node, operator })
+          }
+        />
+        {typeof node.value === 'boolean' ? (
+          <Select
+            items={[
+              { value: 'true', label: t('Enabled') },
+              { value: 'false', label: t('Disabled') },
+            ]}
+            value={String(node.value)}
+            onValueChange={(value) =>
+              value && props.onChange({ ...node, value: value === 'true' })
+            }
+          >
+            <SelectTrigger
+              size='sm'
+              className='w-28'
+              aria-label={t('Condition value')}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectItem value='true'>{t('Enabled')}</SelectItem>
+              <SelectItem value='false'>{t('Disabled')}</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            className='w-32'
+            aria-label={t('Condition value')}
+            value={node.value}
+            onChange={(event) =>
+              props.onChange({ ...node, value: event.target.value })
+            }
+          />
+        )}
+      </div>
+    )
+  }
   const range = conditionRange(node)
   const comparison = node.kind === 'comparison' ? node : range?.[0]
   if (!comparison) return null
@@ -352,8 +429,11 @@ export function VisualConditionTree(props: ConditionProps) {
   const { t } = useTranslation()
   const node = props.node
   const range = conditionRange(node)
-  const group = node.kind !== 'comparison' && !props.implicitRange
-  if (!group) {
+  if (
+    node.kind === 'comparison' ||
+    node.kind === 'request-comparison' ||
+    props.implicitRange
+  ) {
     return (
       <div
         role='group'

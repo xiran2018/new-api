@@ -21,6 +21,7 @@ import { assert, afterEach, describe, expect, test, vi } from 'vitest'
 
 import { getTieredBillingSummary } from '@/features/usage-logs/lib/format'
 import zh from '@/i18n/locales/zh.json'
+import { PLATFORM_BILLING_PRESET_GROUPS } from '@/platform/model-prices/expression-presets'
 
 import contract from '../../../../../../pkg/billingexpr/testdata/frontend_simulation.json'
 import {
@@ -57,6 +58,64 @@ const extras: ExtraTokenValues = {
   audioInputTokens: 0,
   audioOutputTokens: 0,
 }
+
+test('keeps every platform expression preset visually editable', () => {
+  for (const group of PLATFORM_BILLING_PRESET_GROUPS) {
+    for (const preset of group.presets) {
+      expect(parseVisualBillingDocument(preset.expr), preset.key).not.toBeNull()
+    }
+  }
+})
+
+test('visually edits video and audio-duration prices without changing billing semantics', () => {
+  const source =
+    'tier("media", p * 7 + c * 40 + vid * 7 + vid_o * 12 + aud_s * 220)'
+  const document = parseVisualBillingDocument(source)
+  assert(document)
+  assert(document.root.kind === 'tier')
+  expect(
+    Object.fromEntries(
+      document.root.prices.map((price) => [price.variable, price.value])
+    )
+  ).toMatchObject({ vid: '7', vid_o: '12', aud_s: '220' })
+  const regenerated = serializeVisualBillingDocument(document)
+  assert(regenerated.ok)
+  expect(
+    evaluateBillingExpression(regenerated.source, {
+      tokens: { p: 1, c: 1, vid: 2, vid_o: 3, aud_s: 4 },
+    })
+  ).toMatchObject({ status: 'success', cost: 977, matchedTier: 'media' })
+})
+
+test('visually round-trips request-body pricing branches', () => {
+  const source =
+    'param("enable_thinking") == true ? tier("thinking", p * 2 + c * 12) : tier("standard", p * 2 + c * 8)'
+  const document = parseVisualBillingDocument(source)
+  assert(document)
+  expect(document.root).toMatchObject({
+    kind: 'branch',
+    condition: {
+      kind: 'request-comparison',
+      source: 'param',
+      path: 'enable_thinking',
+      value: true,
+    },
+  })
+  const regenerated = serializeVisualBillingDocument(document)
+  assert(regenerated.ok)
+  expect(
+    evaluateBillingExpression(regenerated.source, {
+      tokens: { p: 10, c: 5 },
+      request: { body: { enable_thinking: true } },
+    })
+  ).toMatchObject({ status: 'success', cost: 80, matchedTier: 'thinking' })
+  expect(
+    evaluateBillingExpression(regenerated.source, {
+      tokens: { p: 10, c: 5 },
+      request: { body: {} },
+    })
+  ).toMatchObject({ status: 'success', cost: 60, matchedTier: 'standard' })
+})
 
 test('evaluates and round-trips separate image cache prices including an explicit zero', () => {
   const source =

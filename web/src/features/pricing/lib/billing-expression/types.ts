@@ -28,6 +28,9 @@ export const TOKEN_VARIABLES = [
   'img_o',
   'ai',
   'ao',
+  'vid',
+  'vid_o',
+  'aud_s',
 ] as const
 export type TokenVariable = (typeof TOKEN_VARIABLES)[number]
 export const BILLING_VARIABLES = [...TOKEN_VARIABLES, 'image_count'] as const

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useId, type ReactNode } from 'react'
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InputGroup, InputGroupAddon } from '@/components/ui/input-group'
@@ -26,6 +26,8 @@ import {
 } from '@/features/model-pricing/currency'
 import { PricingAmountInput } from '@/features/model-pricing/pricing-amount-input'
 import { cn } from '@/lib/utils'
+
+import { PricingFieldAddon } from '@/platform/model-prices/pricing-field-addon'
 
 import {
   SettingsControlGroup,
@@ -41,7 +43,8 @@ export function PriceInput(props: {
   placeholder?: string
   disabled?: boolean
   onChange: (value: string) => void
-  addon?: ReactNode
+  addonKey?: string
+  addonScope?: string
 }) {
   return (
     <div className='flex min-w-0 flex-col gap-1.5 lg:flex-row lg:items-center'>
@@ -65,7 +68,13 @@ export function PriceInput(props: {
           {(props.currency ?? USD_PRICING_CURRENCY).symbol}/1M
         </InputGroupAddon>
       </InputGroup>
-      {props.addon}
+      {props.addonKey && (
+        <PricingFieldAddon
+          key={props.addonKey}
+          scope={props.addonScope}
+          value={props.value}
+        />
+      )}
     </div>
   )
 }
@@ -82,7 +91,8 @@ export function PriceLane(props: {
   disabledReason?: string
   onEnabledChange: (checked: boolean) => void
   onChange: (value: string) => void
-  addon?: ReactNode
+  addonKey?: string
+  addonScope?: string
 }) {
   const { t } = useTranslation()
   const controlId = useId()
@@ -115,7 +125,8 @@ export function PriceLane(props: {
         placeholder={props.placeholder}
         disabled={effectiveDisabled}
         onChange={props.onChange}
-        addon={props.addon}
+        addonKey={props.addonKey}
+        addonScope={props.addonScope}
       />
       {!props.compact && (
         <p className='text-muted-foreground text-xs'>

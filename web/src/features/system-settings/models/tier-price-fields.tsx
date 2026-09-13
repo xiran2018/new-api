@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ChevronDown } from 'lucide-react'
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,7 @@ import {
   type CacheMode,
 } from '@/features/pricing/lib/tier-expr'
 import { cn } from '@/lib/utils'
+import { PricingFieldAddon } from '@/platform/model-prices/pricing-field-addon'
 
 const PRICE_VARS = BILLING_EXTRA_VARS.map((variable) => ({
   ...variable,
@@ -50,12 +51,15 @@ const PRICE_VARS = BILLING_EXTRA_VARS.map((variable) => ({
 const CACHE_PRICE_VARS = PRICE_VARS.filter(
   (variable) => variable.group === 'cache' && variable.key !== 'img_cr'
 )
-const MEDIA_PRICE_ORDER = ['img', 'img_cr', 'img_o', 'ai', 'ao']
+const MEDIA_PRICE_ORDER = ['img', 'img_cr', 'img_o', 'vid', 'vid_o', 'ai', 'ao']
 const MEDIA_PRICE_VARS = PRICE_VARS.filter(
   (variable) => variable.group === 'media' || variable.key === 'img_cr'
 ).sort(
   (left, right) =>
     MEDIA_PRICE_ORDER.indexOf(left.key) - MEDIA_PRICE_ORDER.indexOf(right.key)
+)
+const DURATION_PRICE_VARS = PRICE_VARS.filter(
+  (variable) => variable.group === 'duration'
 )
 type PriceFieldProps = {
   currency: PricingCurrency
@@ -66,7 +70,8 @@ type PriceFieldProps = {
   included?: boolean
   onInclude?: (included: boolean) => void
   invalid?: boolean
-  addon?: ReactNode
+  addonKey?: string
+  addonScope?: string
 }
 
 function PriceField({
@@ -78,7 +83,8 @@ function PriceField({
   included,
   onInclude,
   invalid,
-  addon,
+  addonKey,
+  addonScope,
 }: PriceFieldProps) {
   const id = useId()
   const { t } = useTranslation()
@@ -107,7 +113,13 @@ function PriceField({
         className='h-8 w-full'
       />
       {hint && <p className='text-muted-foreground text-xs'>{hint}</p>}
-      {addon}
+      {addonKey && (
+        <PricingFieldAddon
+          key={addonKey}
+          scope={addonScope}
+          value={String(value)}
+        />
+      )}
     </div>
   )
 }
@@ -125,7 +137,6 @@ type TierPriceFieldsProps = {
   onCacheModeChange?: (mode: CacheMode) => void
   invalidVariables?: string[]
   scope?: string
-  renderPriceAddon?: (field: { key: string; scope?: string; value: string }) => ReactNode
 }
 export function TierPriceFields(props: TierPriceFieldsProps) {
   const { t } = useTranslation()
@@ -161,7 +172,8 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
           : undefined
       }
       invalid={props.invalidVariables?.includes(variable.key)}
-      addon={props.renderPriceAddon?.({ key: variable.key, scope: props.scope, value: String(props.prices[variable.key] ?? 0) })}
+      addonKey={variable.key}
+      addonScope={props.scope}
     />
   )
   const billingControl = props.onBillingUnitChange && (
@@ -203,7 +215,8 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
           onChange={(value) => props.onFixedPriceChange?.(value)}
           hint={`${props.currency.symbol}/${t('request')}`}
           invalid={props.invalidVariables?.includes('fixed')}
-          addon={props.renderPriceAddon?.({ key: 'fixed', scope: props.scope, value: props.fixedPrice ?? '' })}
+          addonKey='fixed'
+          addonScope={props.scope}
         />
       </>
     )
@@ -288,6 +301,7 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
         {mediaOpen && (
           <div className='flex flex-wrap gap-x-4 gap-y-2'>
             {MEDIA_PRICE_VARS.map(renderPriceVariable)}
+            {DURATION_PRICE_VARS.map(renderPriceVariable)}
           </div>
         )}
       </div>
