@@ -25,6 +25,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -104,6 +105,7 @@ import {
 import { DraftNumberInput } from './draft-number-input'
 import { RequestSimulation } from './request-simulation'
 import { VisualBillingDocumentEditor } from './visual-billing-document-editor'
+import { PLATFORM_BILLING_PRESET_GROUPS } from '@/platform/model-prices/expression-presets'
 
 type Preset = {
   key: string
@@ -297,6 +299,7 @@ const PRESET_GROUPS: PresetGroup[] = [
       },
     ],
   },
+  ...PLATFORM_BILLING_PRESET_GROUPS,
 ]
 
 // Raw expression editor
@@ -1034,6 +1037,7 @@ export type TieredPricingEditorProps = {
   requestRuleExpr: string
   onBillingExprChange: (next: string) => void
   onRequestRuleExprChange: (next: string) => void
+  renderPriceAddon?: (field: { key: string; scope?: string; value: string }) => ReactNode
 }
 
 type EditorMode = 'visual' | 'raw'
@@ -1051,6 +1055,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
   requestRuleExpr: currentRequestRuleExpr,
   onBillingExprChange,
   onRequestRuleExprChange,
+  renderPriceAddon,
 }: TieredPricingEditorProps) {
   const { t } = useTranslation()
   const [visualDocument, setVisualDocument] =
@@ -1217,6 +1222,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
             currency={currency}
             issues={serialized && !serialized.ok ? serialized.issues : []}
             onChange={handleDocumentChange}
+            renderPriceAddon={renderPriceAddon}
           />
         )}
         {editorMode === 'raw' && (

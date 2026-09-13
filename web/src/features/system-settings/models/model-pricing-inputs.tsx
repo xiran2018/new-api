@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InputGroup, InputGroupAddon } from '@/components/ui/input-group'
@@ -25,7 +25,6 @@ import {
   type PricingCurrency,
 } from '@/features/model-pricing/currency'
 import { PricingAmountInput } from '@/features/model-pricing/pricing-amount-input'
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
 import {
@@ -42,16 +41,8 @@ export function PriceInput(props: {
   placeholder?: string
   disabled?: boolean
   onChange: (value: string) => void
-  vendorPriceUSD?: number
-  priceMultiplier?: number
-  showMissingVendorPrice?: boolean
+  addon?: ReactNode
 }) {
-  const { t } = useTranslation()
-  const entered = Number(props.value)
-  const difference =
-    props.vendorPriceUSD != null && Number.isFinite(entered)
-      ? entered * (props.priceMultiplier ?? 1) - props.vendorPriceUSD
-      : undefined
   return (
     <div className='flex min-w-0 flex-col gap-1.5 lg:flex-row lg:items-center'>
       <InputGroup className='min-w-0 flex-1 has-[[data-pricing-error]]:h-auto has-[[data-pricing-error]]:flex-wrap'>
@@ -74,21 +65,7 @@ export function PriceInput(props: {
           {(props.currency ?? USD_PRICING_CURRENCY).symbol}/1M
         </InputGroupAddon>
       </InputGroup>
-      {props.vendorPriceUSD != null && (
-        <div className='shrink-0 text-xs text-muted-foreground'>
-          {t('Vendor price')}: {formatBillingCurrencyFromUSD(props.vendorPriceUSD)}
-          {difference != null && (
-            <span className={cn('ml-2 font-medium', difference > 0 ? 'text-rose-500' : difference < 0 ? 'text-emerald-500' : 'text-muted-foreground')}>
-              {t('Difference')}: {difference > 0 ? '+' : ''}{formatBillingCurrencyFromUSD(difference)}
-            </span>
-          )}
-        </div>
-      )}
-      {props.showMissingVendorPrice && props.vendorPriceUSD == null && (
-        <div className='shrink-0 text-xs text-muted-foreground'>
-          {t('Vendor price is not set')}
-        </div>
-      )}
+      {props.addon}
     </div>
   )
 }
@@ -105,9 +82,7 @@ export function PriceLane(props: {
   disabledReason?: string
   onEnabledChange: (checked: boolean) => void
   onChange: (value: string) => void
-  vendorPriceUSD?: number
-  priceMultiplier?: number
-  showMissingVendorPrice?: boolean
+  addon?: ReactNode
 }) {
   const { t } = useTranslation()
   const controlId = useId()
@@ -140,9 +115,7 @@ export function PriceLane(props: {
         placeholder={props.placeholder}
         disabled={effectiveDisabled}
         onChange={props.onChange}
-        vendorPriceUSD={props.vendorPriceUSD}
-        priceMultiplier={props.priceMultiplier}
-        showMissingVendorPrice={props.showMissingVendorPrice}
+        addon={props.addon}
       />
       {!props.compact && (
         <p className='text-muted-foreground text-xs'>

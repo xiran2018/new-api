@@ -433,7 +433,11 @@ func validateModelPricing(name string, values, previous PricingValues) error {
 					err = billing_setting.SmokeTestExpr(expression)
 				}
 			} else if previous[key] != expression || len(billingexpr.UsedUsageKeys(expression)) == 0 {
-				err = billing_setting.SmokeTestExpr(expression)
+				if billing_setting.IsRequestUsageExpr(expression) {
+					err = billing_setting.SmokeTestRequestUsageExpr(expression)
+				} else {
+					err = billing_setting.SmokeTestExpr(expression)
+				}
 			}
 			// With no remaining plugin, an unchanged stored usage expression has
 			// no schema to test. Preserve it so removing stale overrides or saving

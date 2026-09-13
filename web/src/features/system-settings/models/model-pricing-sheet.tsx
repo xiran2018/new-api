@@ -124,6 +124,7 @@ type ModelPricingSheetProps = {
   usageSchema?: BillingUsageSchema
   pluginVariants?: ModelPricingPluginVariant[]
   onDirtyChange?: (dirty: boolean) => void
+  renderPriceAddon?: (field: { key: string; scope?: string; value: string }) => ReactNode
 }
 
 type ModelPricingEditorPanelProps = Omit<
@@ -133,6 +134,9 @@ type ModelPricingEditorPanelProps = Omit<
   className?: string
   embedded?: boolean
   scrollHeader?: ReactNode
+  additionalPricingTab?: { label: ReactNode; content: ReactNode }
+  additionalPricingActive?: boolean
+  onAdditionalPricingActiveChange?: (active: boolean) => void
 }
 
 export type ModelPricingEditorPanelHandle = {
@@ -200,6 +204,10 @@ export const ModelPricingEditorPanel = forwardRef<
     onDirtyChange,
     embedded = false,
     scrollHeader,
+    additionalPricingTab,
+    additionalPricingActive = false,
+    onAdditionalPricingActiveChange,
+    renderPriceAddon,
   },
   ref
 ) {
@@ -826,6 +834,7 @@ export const ModelPricingEditorPanel = forwardRef<
       requestRuleExpr={requestRuleExpr}
       onBillingExprChange={setBillingExpr}
       onRequestRuleExprChange={setRequestRuleExpr}
+      renderPriceAddon={renderPriceAddon}
     />
   )
 
@@ -925,11 +934,23 @@ export const ModelPricingEditorPanel = forwardRef<
                 >
                   <Tabs
                     key={editorReloadToken}
-                    value={pricingMode}
-                    onValueChange={handleModeChange}
+                    value={additionalPricingActive ? 'additional' : pricingMode}
+                    onValueChange={(value) => {
+                      if (value === 'additional') {
+                        onAdditionalPricingActiveChange?.(true)
+                        return
+                      }
+                      onAdditionalPricingActiveChange?.(false)
+                      handleModeChange(value)
+                    }}
                     className='gap-4'
                   >
-                    <TabsList className='grid w-full grid-cols-3'>
+                    <TabsList
+                      className={cn(
+                        'grid h-auto w-full',
+                        additionalPricingTab ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'
+                      )}
+                    >
                       <TabsTrigger value='tiered_expr'>
                         {t('Expression')}
                       </TabsTrigger>
@@ -939,7 +960,18 @@ export const ModelPricingEditorPanel = forwardRef<
                       <TabsTrigger value='per-request'>
                         {t('Per-request (deprecated)')}
                       </TabsTrigger>
+                      {additionalPricingTab && (
+                        <TabsTrigger value='additional'>
+                          {additionalPricingTab.label}
+                        </TabsTrigger>
+                      )}
                     </TabsList>
+
+                    {additionalPricingTab && (
+                      <TabsContent value='additional' className='min-w-0 pt-0'>
+                        {additionalPricingTab.content}
+                      </TabsContent>
+                    )}
 
                     {pricingMode !== 'tiered_expr' && (
                       <Alert className='border-amber-500/40 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-100'>
@@ -1056,6 +1088,7 @@ export const ModelPricingEditorPanel = forwardRef<
                             value={promptPrice}
                             placeholder='3'
                             onChange={handlePromptPriceChange}
+                            addon={renderPriceAddon?.({ key: 'input', value: promptPrice })}
                           />
                         </Field>
 
@@ -1088,6 +1121,7 @@ export const ModelPricingEditorPanel = forwardRef<
                               onChange={(value) =>
                                 handleLanePriceChange(lane.key, value)
                               }
+                              addon={renderPriceAddon?.({ key: lane.key, value: lanePrices[lane.key] })}
                             />
                           )
                         })}
@@ -1108,19 +1142,20 @@ export const ModelPricingEditorPanel = forwardRef<
                                     {currency.symbol}
                                   </InputGroupAddon>
                                   <FormControl>
-                                    <PricingAmountInput
+                                  <PricingAmountInput
                                       {...field}
                                       value={field.value ?? ''}
                                       currency={currency}
                                       grouped
                                       placeholder='0.01'
                                       onChange={field.onChange}
-                                    />
+                                  />
                                   </FormControl>
                                   <InputGroupAddon align='inline-end'>
                                     {t('per request')}
                                   </InputGroupAddon>
                                 </InputGroup>
+                                {renderPriceAddon?.({ key: 'request', value: field.value ?? '' })}
                                 <FormDescription>
                                   {t(
                                     'Cost in {{currency}} per request, regardless of tokens used.',
