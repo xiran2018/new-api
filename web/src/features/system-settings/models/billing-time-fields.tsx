@@ -139,6 +139,19 @@ export function BillingConditionValueInput(props: {
   probe?: VisualComparison['probe']
 }) {
   const { t, i18n } = useTranslation()
+  const formatTokenLength = (value: string) => {
+    const amount = Number(value)
+    if (!Number.isFinite(amount) || amount < 1000) return null
+    const units = [
+      [1_000_000_000, 'B'],
+      [1_000_000, 'M'],
+      [1_000, 'K'],
+    ] as const
+    const unit = units.find(([divisor]) => amount >= divisor)
+    if (!unit) return null
+    const formatted = Number((amount / unit[0]).toFixed(2))
+    return `${formatted}${unit[1]} tokens`
+  }
   if (
     props.probe === 'weekday' &&
     !props.normalizeNumberDrafts &&
@@ -178,16 +191,24 @@ export function BillingConditionValueInput(props: {
   }
   if (props.normalizeNumberDrafts) {
     return (
-      <DraftNumberInput
-        aria-label={props.label ?? t('Condition value')}
-        value={props.value}
-        onValueChange={(value) => props.onChange(String(value))}
-        className='w-24'
-      />
+      <div className='flex items-center gap-2'>
+        <DraftNumberInput
+          aria-label={props.label ?? t('Condition value')}
+          value={props.value}
+          onValueChange={(value) => props.onChange(String(value))}
+          className='w-24'
+        />
+        {props.probe === 'len' && formatTokenLength(props.value) && (
+          <span className='text-muted-foreground text-xs whitespace-nowrap'>
+            {formatTokenLength(props.value)}
+          </span>
+        )}
+      </div>
     )
   }
   return (
-    <Input
+    <div className='flex items-center gap-2'>
+      <Input
       type='text'
       inputMode='numeric'
       aria-label={props.label ?? t('Condition value')}
@@ -195,7 +216,13 @@ export function BillingConditionValueInput(props: {
       value={props.value}
       onChange={(event) => props.onChange(event.target.value)}
       className='w-24'
-    />
+      />
+      {props.probe === 'len' && formatTokenLength(props.value) && (
+        <span className='text-muted-foreground text-xs whitespace-nowrap'>
+          {formatTokenLength(props.value)}
+        </span>
+      )}
+    </div>
   )
 }
 
