@@ -65,7 +65,12 @@ export type VisualPricingNode =
       yes: VisualPricingNode
       no: VisualPricingNode
     })
-export type VisualBillingDocument = { source: string; root: VisualPricingNode }
+export type VisualBillingDocument = {
+  source: string
+  root: VisualPricingNode
+  /** Optional shared input section rendered before the output pricing tree. */
+  shared?: { id: string; prices: VisualPrice[] }
+}
 export type VisualBillingIssue = { id: string; message: string }
 export type VisualBillingSerialization =
   | { ok: true; source: string }
@@ -163,6 +168,42 @@ function readVisualCondition(node: ExpressionNode): VisualCondition | null {
 
 function readVisualPricing(node: ExpressionNode): VisualPricingNode | null {
   const identity = { id: `pricing-${node.start}-${node.end}`, origin: node }
+  // A shared-input document is represented as `input + output`. The left side
+  // must be a sum of variable multipliers; the right side is a normal pricing
+  // node (usually a conditional branch of output tiers).
+  if (node.kind === 'binary' && node.operator === '+') {
+    const terms = flattenBinary(node.left, '+')
+    const sharedPrices: VisualPrice[] = []
+    let valid = terms.length > 0
+    for (const term of terms) {
+      if (
+        term.kind !== 'binary' ||
+        term.operator !== '*' ||
+        term.left.kind !== 'variable' ||
+        term.left.name === 'len' ||
+        term.left.name === 'image_count' ||
+        term.right.kind !== 'literal' ||
+        typeof term.right.value !== 'number' ||
+        term.right.value < 0 ||
+        sharedPrices.some((price) => price.variable === (term.left as Extract<ExpressionNode, { kind: 'variable' }>).name)
+      ) {
+        valid = false
+        break
+      }
+      const variable = (term.left as Extract<ExpressionNode, { kind: 'variable' }>).name as VisualPrice['variable']
+      sharedPrices.push({
+        variable,
+        value: String(term.right.value),
+        origin: term,
+      })
+    }
+    const output = readVisualPricing(node.right)
+    if (valid && output) {
+      // The caller handles the shared wrapper separately; retain the output
+      // node here so existing consumers remain type-compatible.
+      return output
+    }
+  }
   if (node.kind === 'conditional') {
     const condition = readVisualCondition(node.condition)
     const yes = readVisualPricing(node.yes)
@@ -231,6 +272,26 @@ export function parseVisualBillingDocument(
 ): VisualBillingDocument | null {
   const compiled = compileBillingExpression(source)
   if (compiled.status !== 'ready') return null
+  if (compiled.ast.kind === 'binary' && compiled.ast.operator === '+') {
+    const terms = flattenBinary(compiled.ast.left, '+')
+    const prices: VisualPrice[] = []
+    const valid = terms.every((term) => {
+      if (term.kind !== 'binary' || term.operator !== '*' || term.left.kind !== 'variable' || term.left.name === 'image_count' || term.left.name === 'len' || term.right.kind !== 'literal' || typeof term.right.value !== 'number' || term.right.value < 0) return false
+      const variable = term.left.name as VisualPrice['variable']
+      if (prices.some((p) => p.variable === variable)) return false
+      prices.push({ variable, value: String(term.right.value), origin: term })
+      return true
+    })
+    const output = valid ? readVisualPricing(compiled.ast.right) : null
+    if (valid && output) {
+      const document: VisualBillingDocument = {
+        source,
+        root: output,
+        shared: { id: `shared-${compiled.ast.start}-${compiled.ast.end}`, prices },
+      }
+      return serializeVisualBillingDocument(document).ok ? document : null
+    }
+  }
   const root = readVisualPricing(compiled.ast)
   if (!root) return null
   const document = { source, root }
@@ -496,7 +557,16 @@ export function serializeVisualBillingDocument(
   document: VisualBillingDocument
 ): VisualBillingSerialization {
   const issues: VisualBillingIssue[] = []
-  const body = writeVisualPricing(document.root, document.source, issues)
+  let body = writeVisualPricing(document.root, document.source, issues)
+  if (document.shared) {
+    if (document.shared.prices.length === 0) issues.push({ id: document.shared.id, message: 'Include at least one shared input price.' })
+    const terms = document.shared.prices.map((price) => {
+      const value = parseNonNegativeNumber(price.value)
+      if (value === null) issues.push({ id: `${document.shared?.id}:${price.variable}`, message: 'Enter a finite, non-negative price.' })
+      return `${price.variable} * ${price.value}`
+    })
+    body = `(${terms.join(' + ')}) + (${body})`
+  }
   if (issues.length > 0) return { ok: false, issues }
   const original = compileBillingExpression(document.source)
   if (original.status !== 'ready') {

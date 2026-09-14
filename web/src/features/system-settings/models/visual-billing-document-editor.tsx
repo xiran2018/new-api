@@ -381,8 +381,51 @@ export function VisualBillingDocumentEditor(props: {
   onChange: (document: VisualBillingDocument) => void
 }) {
   const { t } = useTranslation()
+  const shared = props.document.shared
   return (
     <div className='space-y-3'>
+      {shared && (
+        <section className='space-y-3 rounded-xl border bg-muted/20 p-3'>
+          <p className='text-sm font-medium'>{t('Shared input pricing')}</p>
+          <p className='text-muted-foreground text-xs'>
+            {t('These input prices are applied once before the selected output price branch.')}
+          </p>
+          <TierPriceFields
+            currency={props.currency}
+            billingUnit='token'
+            fixedPrice=''
+            onBillingUnitChange={() => undefined}
+            onFixedPriceChange={() => undefined}
+            prices={Object.fromEntries(shared.prices.map((price) => [price.variable, price.value]))}
+            invalidVariables={props.issues
+              .filter((issue) => issue.id.startsWith(`${shared.id}:`))
+              .map((issue) => issue.id.slice(shared.id.length + 1))}
+            scope={t('Shared input pricing')}
+            onChange={(variable, value) =>
+              props.onChange({
+                ...props.document,
+                shared: {
+                  ...shared,
+                  prices: shared.prices.map((price) =>
+                    price.variable === variable ? { ...price, value } : price
+                  ),
+                },
+              })
+            }
+            onInclude={(variable, included) =>
+              props.onChange({
+                ...props.document,
+                shared: {
+                  ...shared,
+                  prices: included
+                    ? [...shared.prices, { variable, value: '0' }]
+                    : shared.prices.filter((price) => price.variable !== variable),
+                },
+              })
+            }
+          />
+        </section>
+      )}
       {props.document.root.kind === 'branch' && (
         <p className='text-muted-foreground text-xs'>
           {t(
