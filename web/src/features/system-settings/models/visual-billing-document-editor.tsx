@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Pencil } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -34,6 +34,7 @@ import {
   formatPricingAmount,
   type PricingCurrency,
 } from '@/features/model-pricing/currency'
+import { PricingAmountInput } from '@/features/model-pricing/pricing-amount-input'
 import { BILLING_VARS } from '@/features/pricing/lib/billing-expr'
 import { formatBillingCondition } from '@/features/pricing/lib/billing-expression/condition-display'
 import {
@@ -55,6 +56,56 @@ type PricingNodeProps = {
   currency: PricingCurrency
   issues: VisualBillingIssue[]
   onChange: (node: VisualPricingNode) => void
+}
+
+function tokenLengthLabel(value: string): string | null {
+  if (!value.trim()) return null
+  const amount = Number(value)
+  if (!Number.isFinite(amount) || amount <= 0) return null
+  const scale = amount >= 1_000_000_000 ? [1_000_000_000, 'B']
+    : amount >= 1_000_000 ? [1_000_000, 'M'] : [1_000, 'K']
+  return amount >= 1_000
+    ? `${Number((amount / Number(scale[0])).toFixed(2))}${scale[1]}`
+    : String(amount)
+}
+
+function syncDefaultTierNames(
+  root: Extract<VisualPricingNode, { kind: 'branch' }>,
+  previous: VisualCondition,
+  next: VisualCondition
+): Extract<VisualPricingNode, { kind: 'branch' }> {
+  const replacements: [string, string][] = []
+  const collect = (old: VisualCondition, updated: VisualCondition) => {
+    if (old.kind === 'comparison' && updated.kind === 'comparison' &&
+        old.probe === 'len' && updated.probe === 'len' && old.value !== updated.value) {
+      const oldLabel = tokenLengthLabel(old.value)
+      const newLabel = tokenLengthLabel(updated.value)
+      if (oldLabel && newLabel) replacements.push([oldLabel, newLabel])
+    } else if ((old.kind === 'all' || old.kind === 'any') &&
+               (updated.kind === 'all' || updated.kind === 'any')) {
+      old.children.forEach((child, index) => {
+        if (updated.children[index]) collect(child, updated.children[index])
+      })
+    }
+  }
+  collect(previous, next)
+  if (replacements.length === 0) return root
+  // Only rename generated numeric-range labels. A manually named tier is left alone.
+  const numericRange = /^(?:\d+(?:\.\d+)?[KMB]?(?:-|\+|\s)|≤\s*\d)/i
+  const rename = (node: VisualPricingNode): VisualPricingNode => {
+    if (node.kind === 'branch') {
+      return { ...node, yes: rename(node.yes), no: rename(node.no) }
+    }
+    if (!numericRange.test(node.label)) return node
+    let label = node.label
+    for (const [oldLabel, newLabel] of replacements) {
+      const escaped = oldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const matchingBoundary = new RegExp(`(^|[^\\d.KMB])${escaped}(?![\\d.KMB])`, 'gi')
+      label = label.replace(matchingBoundary, `$1${newLabel}`)
+    }
+    return { ...node, label }
+  }
+  return { ...root, yes: rename(root.yes), no: rename(root.no) }
 }
 
 function PricingTierFields(
@@ -283,6 +334,18 @@ function PricingRuleCard(
             className={`mt-1 size-4 shrink-0 transition-transform ${open || hasIssues ? 'rotate-180' : ''}`}
           />
         </CollapsibleTrigger>
+        {tier.kind === 'tier' && (
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon'
+            aria-label={t('Edit tier name')}
+            title={t('Edit tier name')}
+            onClick={() => setOpen(true)}
+          >
+            <Pencil aria-hidden='true' className='size-4' />
+          </Button>
+        )}
         {node.kind === 'branch' && (
           <DataTableRowActionMenu
             ariaLabel={t('Branch actions {{path}}', { path: props.number })}
@@ -305,7 +368,10 @@ function PricingRuleCard(
                 node={node.condition}
                 path={props.number}
                 issues={props.issues}
-                onChange={(condition) => props.onChange({ ...node, condition })}
+                onChange={(condition) => props.onChange({
+                  ...syncDefaultTierNames(node, node.condition, condition),
+                  condition,
+                })}
               />
             </div>
           )}
@@ -374,6 +440,62 @@ function PricingRuleList(props: PricingNodeProps & { prefix: string }) {
   )
 }
 
+function SharedThinkingPriceEditor(props: {
+  document: VisualBillingDocument
+  currency: PricingCurrency
+  issues: VisualBillingIssue[]
+  onChange: (document: VisualBillingDocument) => void
+}) {
+  const { t } = useTranslation()
+  const shared = props.document.shared!
+  const branch = props.document.root as Extract<VisualPricingNode, { kind: 'branch' }>
+  const thinking = branch.yes as Extract<VisualPricingNode, { kind: 'tier' }>
+  const standard = branch.no as Extract<VisualPricingNode, { kind: 'tier' }>
+  const fields = [
+    { label: t('Input price'), price: shared.prices[0], id: shared.id,
+      update: (value: string) => props.onChange({ ...props.document, shared: { ...shared, prices: [{ ...shared.prices[0], value }] } }) },
+    { label: t('Non-thinking output price'), price: standard.prices[0], id: standard.id,
+      update: (value: string) => props.onChange({ ...props.document, root: { ...branch, no: { ...standard, prices: [{ ...standard.prices[0], value }] } } }) },
+    { label: t('Thinking output price'), price: thinking.prices[0], id: thinking.id,
+      update: (value: string) => props.onChange({ ...props.document, root: { ...branch, yes: { ...thinking, prices: [{ ...thinking.prices[0], value }] } } }) },
+  ]
+  return (
+    <div className='grid gap-4 sm:grid-cols-3'>
+      {fields.map((field) => (
+        <label key={field.id} className='min-w-0 space-y-2 text-sm font-medium'>
+          <span>{field.label}</span>
+          <PricingAmountInput
+            aria-label={field.label}
+            currency={props.currency}
+            value={field.price.value}
+            onChange={field.update}
+            aria-invalid={props.issues.some((issue) => issue.id === `${field.id}:${field.price.variable}`) || undefined}
+          />
+          <span className='text-muted-foreground block text-xs font-normal'>
+            {props.currency.symbol}/{t('1M token')}
+          </span>
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function isSharedThinkingPrice(document: VisualBillingDocument): boolean {
+  const branch = document.root
+  return document.shared?.prices.length === 1 &&
+    document.shared.prices[0].variable === 'p' &&
+    branch.kind === 'branch' &&
+    branch.condition.kind === 'request-comparison' &&
+    branch.condition.source === 'param' &&
+    branch.condition.path === 'enable_thinking' &&
+    branch.condition.operator === '==' &&
+    branch.condition.value === true &&
+    branch.yes.kind === 'tier' && branch.no.kind === 'tier' &&
+    branch.yes.billingUnit === 'token' && branch.no.billingUnit === 'token' &&
+    branch.yes.prices.length === 1 && branch.yes.prices[0].variable === 'c' &&
+    branch.no.prices.length === 1 && branch.no.prices[0].variable === 'c'
+}
+
 export function VisualBillingDocumentEditor(props: {
   document: VisualBillingDocument
   currency: PricingCurrency
@@ -381,6 +503,9 @@ export function VisualBillingDocumentEditor(props: {
   onChange: (document: VisualBillingDocument) => void
 }) {
   const { t } = useTranslation()
+  if (isSharedThinkingPrice(props.document)) {
+    return <SharedThinkingPriceEditor {...props} />
+  }
   const shared = props.document.shared
   return (
     <div className='space-y-3'>

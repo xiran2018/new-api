@@ -117,6 +117,85 @@ test('visually round-trips request-body pricing branches', () => {
   ).toMatchObject({ status: 'success', cost: 60, matchedTier: 'standard' })
 })
 
+test('Qwen range template bills thinking and non-thinking output independently', () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'qwen-thinking-output')
+  assert(preset)
+  const document = parseVisualBillingDocument(preset.expr)
+  assert(document)
+  const serialized = serializeVisualBillingDocument(document)
+  assert(serialized.ok)
+  for (const [enabled, expected] of [[false, '0-256K non-thinking'], [true, '0-256K thinking']] as const) {
+    expect(evaluateBillingExpression(serialized.source, {
+      tokens: { p: 256000, c: 100, len: 256000 },
+      request: { body: { enable_thinking: enabled } },
+    })).toMatchObject({ status: 'success', cost: 461880, matchedTier: expected })
+  }
+  expect(evaluateBillingExpression(serialized.source, {
+    tokens: { p: 256001, c: 100, len: 256001 },
+    request: { body: { enable_thinking: true } },
+  })).toMatchObject({ status: 'success', matchedTier: '256K+ thinking (edit price)' })
+})
+
+test('shared input thinking template edits each price without duplicating input', () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'shared-input-thinking-output')
+  assert(preset)
+  const document = parseVisualBillingDocument(preset.expr)
+  assert(document?.shared)
+  assert(document.root.kind === 'branch')
+  assert(document.root.yes.kind === 'tier')
+  assert(document.root.no.kind === 'tier')
+  expect(document.shared.prices.map(({ variable }) => variable)).toEqual(['p'])
+  expect(document.root.yes.prices.map(({ variable }) => variable)).toEqual(['c'])
+  expect(document.root.no.prices.map(({ variable }) => variable)).toEqual(['c'])
+
+  const changed = {
+    ...document,
+    shared: { ...document.shared, prices: [{ ...document.shared.prices[0], value: '3' }] },
+    root: {
+      ...document.root,
+      yes: { ...document.root.yes, prices: [{ ...document.root.yes.prices[0], value: '20' }] },
+      no: { ...document.root.no, prices: [{ ...document.root.no.prices[0], value: '18' }] },
+    },
+  }
+  const serialized = serializeVisualBillingDocument(changed)
+  assert(serialized.ok)
+  for (const [enabled, cost, tier] of [
+    [false, 390, 'non-thinking output'],
+    [true, 400, 'thinking output'],
+  ] as const) {
+    expect(evaluateBillingExpression(serialized.source, {
+      tokens: { p: 100, c: 5 },
+      request: { body: { enable_thinking: enabled } },
+    })).toMatchObject({ status: 'success', cost, matchedTier: tier })
+  }
+})
+
+test('two-range thinking tariff bills both configured ranges', () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'two-range-thinking-output')
+  assert(preset)
+  const document = parseVisualBillingDocument(preset.expr)
+  assert(document)
+  const saved = serializeVisualBillingDocument(document)
+  assert(saved.ok)
+  for (const [length, thinking, cost, label] of [
+    [256000, false, 200800, 'Short context non-thinking'],
+    [256001, true, 602400, 'Long context thinking'],
+    [1000000, false, 602400, 'Long context non-thinking'],
+  ] as const) {
+    expect(evaluateBillingExpression(saved.source, {
+      tokens: { p: 100000, c: 100, len: length },
+      request: { body: { enable_thinking: thinking } },
+    })).toMatchObject({ status: 'success', cost, matchedTier: label })
+  }
+  expect(evaluateBillingExpression(saved.source, {
+    tokens: { p: 1000001, c: 100, len: 1000001 },
+    request: { body: { enable_thinking: true } },
+  })).toMatchObject({ status: 'success', matchedTier: 'Long context thinking' })
+})
+
 test('evaluates and round-trips separate image cache prices including an explicit zero', () => {
   const source =
     'tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)'

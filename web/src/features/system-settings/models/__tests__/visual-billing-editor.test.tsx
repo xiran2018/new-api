@@ -22,6 +22,7 @@ import { assert, describe, expect, test, vi } from 'vitest'
 
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { evaluateBillingExpression } from '@/features/pricing/lib/billing-expression/runtime'
+import { PLATFORM_BILLING_PRESET_GROUPS } from '@/platform/model-prices/expression-presets'
 
 import { TieredPricingEditor } from '../tiered-pricing-editor'
 
@@ -30,6 +31,53 @@ const expression =
 
 const chainedExpression =
   'len <= 32000 && c <= 200 ? tier("discount", p * 0.8 + c * 2 + cr * 0.16 + cc * 0.17) : len <= 32000 ? tier("short", p * 0.8 + c * 8 + cr * 0.16 + cc * 0.17) : len <= 128000 ? tier("mid", p * 1.2 + c * 16 + cr * 0.16 + cc * 0.17) : tier("long", p * 2.4 + c * 24 + cr * 0.16 + cc * 0.17)'
+
+test('opens two-range thinking prices visually', async () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'two-range-thinking-output')
+  assert(preset)
+  const onBillingExprChange = vi.fn()
+  render(<TieredPricingEditor
+    billingExpr={preset.expr}
+    requestRuleExpr=''
+    onBillingExprChange={onBillingExprChange}
+    onRequestRuleExprChange={vi.fn()}
+  />)
+  expect(screen.getByRole('group', { name: 'Pricing tier Short context thinking' })).toBeInTheDocument()
+  const longThinking = within(screen.getByRole('group', { name: 'Pricing tier Long context thinking' }))
+  await userEvent.setup().click(longThinking.getByRole('button', { name: 'Edit pricing rule Long context thinking' }))
+  expect(longThinking.getByRole('textbox', { name: 'Input price' })).toBeInTheDocument()
+  fireEvent.change(longThinking.getByRole('textbox', { name: 'Input price' }), { target: { value: '7' } })
+  expect(onBillingExprChange.mock.lastCall?.[0]).toContain('tier("Long context thinking", p * 7 + c * 24)')
+})
+
+test('keeps default threshold names in sync and preserves custom tier names', async () => {
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr='len <= 256000 ? tier("0-256K thinking", p * 1 + c * 2) : tier("256K+ thinking", p * 2 + c * 3)'
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  fireEvent.change(screen.getByRole('textbox', { name: 'Condition value' }), {
+    target: { value: '128000' },
+  })
+  expect(onBillingExprChange.mock.lastCall?.[0]).toContain('tier("0-128K thinking"')
+  expect(onBillingExprChange.mock.lastCall?.[0]).toContain('tier("128K+ thinking"')
+
+  const fallback = within(screen.getByRole('group', { name: 'Pricing tier 128K+ thinking' }))
+  await userEvent.setup().click(fallback.getByRole('button', { name: 'Edit tier name' }))
+  fireEvent.change(fallback.getByRole('textbox', { name: 'Tier name' }), {
+    target: { value: '自定义长上下文' },
+  })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Condition value' }), {
+    target: { value: '64000' },
+  })
+  expect(onBillingExprChange.mock.lastCall?.[0]).toContain('tier("0-64K thinking"')
+  expect(onBillingExprChange.mock.lastCall?.[0]).toContain('tier("自定义长上下文"')
+})
 
 test('shows chained tiers as peer rules and edits a later rule without changing precedence', async () => {
   const onBillingExprChange = vi.fn()
