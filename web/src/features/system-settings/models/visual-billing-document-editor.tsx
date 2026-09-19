@@ -219,6 +219,7 @@ function PricingRuleCard(
     number: string
     first: boolean
     fallback: boolean
+    onRemove?: () => void
   }
 ) {
   const { t, i18n } = useTranslation()
@@ -352,7 +353,9 @@ function PricingRuleCard(
           >
             <DropdownMenuItem
               variant='destructive'
-              onClick={() => props.onChange(node.no)}
+              onClick={() =>
+                props.onRemove ? props.onRemove() : props.onChange(node.no)
+              }
             >
               {t('Remove branch')}
             </DropdownMenuItem>
@@ -415,6 +418,34 @@ function PricingRuleList(props: PricingNodeProps & { prefix: string }) {
     current = current.no
   }
   rules.push(current)
+  const removeRule = (index: number) => {
+    const node = rules[index]
+    if (!node) return
+    let root: VisualPricingNode
+    let firstWrappedIndex = index - 1
+    const isFinalModeRule =
+      node.kind === 'branch' &&
+      node.condition.kind === 'request-comparison' &&
+      node.no.kind === 'tier' &&
+      index === rules.length - 2
+    if (isFinalModeRule) {
+      // A final mode rule is stored as a condition followed by a fallback
+      // tier. Removing it must remove both modes and promote the preceding
+      // tier to the fallback so the expression remains valid.
+      const predecessor = rules[index - 1]
+      root = predecessor.kind === 'branch' ? predecessor.yes : predecessor
+      firstWrappedIndex = index - 2
+    } else if (index === rules.length - 1) {
+      root = node
+    } else {
+      root = node.kind === 'branch' ? node.no : rules[index + 1]
+    }
+    for (let previous = firstWrappedIndex; previous >= 0; previous--) {
+      const branch = rules[previous]
+      if (branch.kind === 'branch') root = { ...branch, no: root }
+    }
+    props.onChange(root)
+  }
   return (
     <ol aria-label={t('Pricing rules')} className='min-w-0 space-y-3'>
       {rules.map((node, index) => (
@@ -425,6 +456,7 @@ function PricingRuleList(props: PricingNodeProps & { prefix: string }) {
             number={`${props.prefix}${index + 1}`}
             first={index === 0}
             fallback={index > 0 && node.kind === 'tier'}
+            onRemove={() => removeRule(index)}
             onChange={(next) => {
               let root = next
               for (let previous = index - 1; previous >= 0; previous--) {

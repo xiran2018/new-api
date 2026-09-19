@@ -54,6 +54,54 @@ test('opens two-range thinking prices visually', async () => {
   expect(onBillingExprChange.mock.lastCall?.[0]).toContain('tier("Long context thinking", p * 7 + c * 24)')
 })
 
+test('removes the final thinking tier without losing its non-thinking sibling', async () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'three-range-thinking-output')
+  assert(preset)
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={preset.expr}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  const finalTier = within(
+    screen.getByRole('group', { name: 'Pricing tier 1M+ thinking' })
+  )
+  await userEvent.setup().click(
+    finalTier.getByRole('button', { name: 'Edit pricing rule 1M+ thinking' })
+  )
+  expect(
+    screen.getByRole('group', { name: 'Pricing tier 1M+ non-thinking' })
+  ).toBeInTheDocument()
+  await userEvent.setup().click(
+    finalTier.getByRole('button', { name: 'Branch actions 4' })
+  )
+  await userEvent.setup().click(
+    screen.getByRole('menuitem', { name: 'Remove branch' })
+  )
+  const removed = onBillingExprChange.mock.lastCall?.[0]
+  assert(removed)
+  expect(removed).not.toContain('tier("1M+ thinking"')
+  expect(removed).not.toContain('tier("1M+ non-thinking"')
+  expect(removed).toContain('tier("256K-1M thinking"')
+  expect(removed).toContain('tier("256K-1M non-thinking"')
+  expect(
+    evaluateBillingExpression(removed, {
+      tokens: { p: 100, c: 100, len: 1000001 },
+      request: { body: { enable_thinking: true } },
+    })
+  ).toMatchObject({ status: 'success', matchedTier: '256K-1M thinking' })
+  expect(
+    evaluateBillingExpression(removed, {
+      tokens: { p: 100, c: 100, len: 1000001 },
+      request: { body: { enable_thinking: false } },
+    })
+  ).toMatchObject({ status: 'success', matchedTier: '256K-1M non-thinking' })
+})
+
 test('keeps default threshold names in sync and preserves custom tier names', async () => {
   const onBillingExprChange = vi.fn()
   render(
