@@ -159,7 +159,7 @@ test('shows chained tiers as peer rules and edits a later rule without changing 
   const user = userEvent.setup()
   await user.keyboard('{Enter}')
   expect(expand).toHaveAttribute('aria-expanded', 'true')
-  expect(short.getByRole('textbox', { name: 'Output price' })).toHaveValue('8')
+  expect(short.getByRole('textbox', { name: 'Output price' })).toHaveValue('8.000')
   expect(onBillingExprChange).not.toHaveBeenCalled()
   fireEvent.change(short.getByRole('textbox', { name: 'Output price' }), {
     target: { value: '10' },
@@ -264,7 +264,7 @@ test('retains all pricing inputs and switches inside an expanded rule', async ()
   await user.click(screen.getByRole('option', { name: 'Per token' }))
   expect(
     tier.getByRole('textbox', { name: 'Cache create (1h) price' })
-  ).toHaveValue('0.3')
+  ).toHaveValue('0.300')
   expect(
     tier.getByRole('checkbox', { name: 'Include Image cache input price' })
   ).toBeChecked()
@@ -345,14 +345,14 @@ test('keeps the condition tree as the default after switching models and applyin
   expect(
     screen.getByRole('button', { name: 'Add pricing branch' })
   ).toBeVisible()
-  expect(screen.getByRole('textbox', { name: 'Input price' })).toHaveValue('2')
+  expect(screen.getByRole('textbox', { name: 'Input price' })).toHaveValue('2.000')
   expect(props.onBillingExprChange).not.toHaveBeenCalled()
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Flat' }))
   expect(
     screen.getByRole('button', { name: 'Add pricing branch' })
   ).toBeVisible()
-  expect(screen.getByRole('textbox', { name: 'Output price' })).toHaveValue('4')
+  expect(screen.getByRole('textbox', { name: 'Output price' })).toHaveValue('4.000')
   expect(props.onBillingExprChange).toHaveBeenLastCalledWith(
     'tier("base", p * 2 + c * 4)'
   )
@@ -490,7 +490,7 @@ test('edits image cache pricing and preserves an explicitly free cache lane', ()
     />
   )
   const price = screen.getByRole('textbox', { name: 'Image cache input price' })
-  expect(price).toHaveValue('2')
+  expect(price).toHaveValue('2.000')
   fireEvent.change(price, { target: { value: '0' } })
   expect(onBillingExprChange.mock.lastCall?.[0]).toContain('img_cr * 0')
   expect(
@@ -500,8 +500,8 @@ test('edits image cache pricing and preserves an explicitly free cache lane', ()
 
 describe('visual time billing editor', () => {
   test.each([
-    ['simple tiers', 'tier("base", p * 2 + c * 8)', '2'],
-    ['condition tree', expression, '3'],
+    ['simple tiers', 'tier("base", p * 2 + c * 8)', '2.000'],
+    ['condition tree', expression, '3.000'],
   ])(
     'switches %s between token and request prices while preserving drafts',
     async (_name, source, tokenPrice) => {
@@ -543,7 +543,7 @@ describe('visual time billing editor', () => {
       await user.click(screen.getByRole('option', { name: 'Per-call' }))
       expect(
         screen.getByRole('textbox', { name: 'Price per request' })
-      ).toHaveValue('0.02')
+      ).toHaveValue('0.020')
       fireEvent.change(
         screen.getByRole('textbox', { name: 'Price per request' }),
         { target: { value: '0' } }
@@ -568,7 +568,7 @@ describe('visual time billing editor', () => {
     )
     expect(
       screen.getByRole('textbox', { name: 'Price per request' })
-    ).toHaveValue('0.07')
+    ).toHaveValue('0.070')
     expect(onBillingExprChange).not.toHaveBeenCalled()
     fireEvent.change(
       screen.getByRole('textbox', { name: 'Price per request' }),
@@ -585,7 +585,7 @@ describe('visual time billing editor', () => {
     )
     expect(
       screen.getByRole('textbox', { name: 'Price per request' })
-    ).toHaveValue('0.02')
+    ).toHaveValue('0.020')
     expect(onBillingExprChange).toHaveBeenCalledTimes(1)
   })
   test('opens mixed request and token prices visually without rewriting the expression', () => {
@@ -601,7 +601,7 @@ describe('visual time billing editor', () => {
     const tier = screen.getByRole('group', { name: 'Pricing tier short' })
     expect(
       within(tier).getByRole('textbox', { name: 'Price per request' })
-    ).toHaveValue('0.01')
+    ).toHaveValue('0.010')
     expect(
       within(tier).queryByRole('textbox', { name: 'Input price' })
     ).not.toBeInTheDocument()
@@ -714,7 +714,7 @@ describe('visual time billing editor', () => {
       within(
         screen.getByRole('group', { name: 'Pricing tier peak' })
       ).getByRole('textbox', { name: 'Input price' })
-    ).toHaveValue('3')
+    ).toHaveValue('3.000')
     const user = userEvent.setup()
     await user.click(
       screen.getByRole('button', { name: 'Edit pricing rule off_peak' })
@@ -723,7 +723,7 @@ describe('visual time billing editor', () => {
       within(
         screen.getByRole('group', { name: 'Pricing tier off_peak' })
       ).getByRole('textbox', { name: 'Input price' })
-    ).toHaveValue('1.5')
+    ).toHaveValue('1.500')
     expect(
       screen.getAllByRole('combobox', { name: 'Condition group' }).length
     ).toBeGreaterThan(1)
@@ -761,7 +761,7 @@ test('keeps exact source and independent request rules through mode and currency
       'textbox',
       { name: 'Input price' }
     )
-  ).toHaveValue('21')
+  ).toHaveValue('21.000')
   expect(screen.getAllByRole('textbox', { name: 'Start' })[0]).toHaveValue('9')
   expect(onBillingExprChange).not.toHaveBeenCalled()
   expect(onRequestRuleExprChange).not.toHaveBeenCalled()
@@ -878,7 +878,7 @@ test('copies prices into a new branch and retains the original as its otherwise 
     }
     expect(
       within(tier).getByRole('textbox', { name: 'Input price' })
-    ).toHaveValue('3')
+    ).toHaveValue('3.000')
   }
   expect(onBillingExprChange).not.toHaveBeenCalled()
   const empty = screen
