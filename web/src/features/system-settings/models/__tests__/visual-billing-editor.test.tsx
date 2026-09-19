@@ -16,14 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createInstance } from 'i18next'
+import { I18nextProvider } from 'react-i18next'
 import { assert, describe, expect, test, vi } from 'vitest'
 
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { evaluateBillingExpression } from '@/features/pricing/lib/billing-expression/runtime'
 import { PLATFORM_BILLING_PRESET_GROUPS } from '@/platform/model-prices/expression-presets'
 
+import { BillingConditionValueInput } from '../billing-time-fields'
 import { TieredPricingEditor } from '../tiered-pricing-editor'
 
 const expression =
@@ -78,6 +81,56 @@ test('keeps default threshold names in sync and preserves custom tier names', as
   expect(onBillingExprChange.mock.lastCall?.[0]).toContain('tier("0-64K thinking"')
   expect(onBillingExprChange.mock.lastCall?.[0]).toContain('tier("自定义长上下文"')
 })
+
+test.each([
+  ['zhCN', '星期一'],
+  ['zhTW', '星期一'],
+  ['en', 'Monday'],
+  ['fr', 'lundi'],
+  ['ru', 'понедельник'],
+  ['ja', '月曜日'],
+  ['vi', 'Thứ Hai'],
+  [
+    'invalid_locale',
+    new Intl.DateTimeFormat(undefined, {
+      weekday: 'long',
+      timeZone: 'UTC',
+    }).format(new Date('2026-01-05T00:00:00Z')),
+  ],
+])(
+  'formats weekdays for %s and updates after a language switch',
+  async (language, monday) => {
+    const translations = createInstance()
+    await translations.init({
+      lng: language,
+      fallbackLng: 'en',
+      resources: Object.fromEntries(
+        ['en', 'fr', language].map((code) => [
+          code,
+          { translation: { 'Condition value': 'Condition value' } },
+        ])
+      ),
+    })
+    const onChange = vi.fn()
+    render(
+      <I18nextProvider i18n={translations}>
+        <BillingConditionValueInput
+          probe='weekday'
+          value='1'
+          onChange={onChange}
+        />
+      </I18nextProvider>
+    )
+    expect(
+      screen.getByRole('combobox', { name: 'Condition value' })
+    ).toHaveTextContent(monday)
+    await act(() => translations.changeLanguage('fr'))
+    expect(
+      screen.getByRole('combobox', { name: 'Condition value' })
+    ).toHaveTextContent('lundi')
+    expect(onChange).not.toHaveBeenCalled()
+  }
+)
 
 test('shows chained tiers as peer rules and edits a later rule without changing precedence', async () => {
   const onBillingExprChange = vi.fn()
