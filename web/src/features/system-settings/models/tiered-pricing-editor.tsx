@@ -702,7 +702,7 @@ function PresetSection({ applyPreset }: PresetSectionProps) {
                 className='h-7 text-xs'
                 onClick={() => applyPreset(preset)}
               >
-                {preset.label}
+                {t(preset.label)}
               </Button>
             ))}
           </div>

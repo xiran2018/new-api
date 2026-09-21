@@ -56,6 +56,8 @@ export type VisualPricingNode =
       kind: 'tier'
       label: string
       prices: VisualPrice[]
+      /** Input prices applied once before this tier's output prices. */
+      sharedPrices?: VisualPrice[]
       billingUnit: 'token' | 'request'
       fixedPrice: string
     })
@@ -199,8 +201,11 @@ function readVisualPricing(node: ExpressionNode): VisualPricingNode | null {
     }
     const output = readVisualPricing(node.right)
     if (valid && output) {
-      // The caller handles the shared wrapper separately; retain the output
-      // node here so existing consumers remain type-compatible.
+      // A tier-local shared-input wrapper is represented as
+      // `(p * input) + tier("...", c * output)`. Keeping the shared prices on
+      // the tier preserves the standard billing expression while allowing the
+      // visual editor to expose one input field for both thinking branches.
+      if (output.kind === 'tier') return { ...output, sharedPrices }
       return output
     }
   }
@@ -529,6 +534,7 @@ function writeVisualPricing(
     } else terms.push(`${price.variable} * ${price.value}`)
   }
   const origin = node.origin
+  let body: string
   if (origin?.kind === 'call' && origin.name === 'tier') {
     const label = origin.args[0]
     const labelText =
@@ -540,17 +546,28 @@ function writeVisualPricing(
       original.length === node.prices.length &&
       original.every((term, i) => node.prices[i].origin === term)
     ) {
-      return patchSource(source, origin, [
+      body = patchSource(source, origin, [
         { node: label, text: labelText },
         ...valuePatches,
       ])
+    } else {
+      body = patchSource(source, origin, [
+        { node: label, text: labelText },
+        { node: origin.args[1], text: terms.join(' + ') },
+      ])
     }
-    return patchSource(source, origin, [
-      { node: label, text: labelText },
-      { node: origin.args[1], text: terms.join(' + ') },
-    ])
+  } else {
+    body = `tier(${JSON.stringify(node.label)}, ${terms.join(' + ')})`
   }
-  return `tier(${JSON.stringify(node.label)}, ${terms.join(' + ')})`
+  if (!node.sharedPrices?.length) return body
+  const sharedTerms = node.sharedPrices.map((price) => {
+    const value = parseNonNegativeNumber(price.value)
+    if (value === null) {
+      issues.push({ id: `${node.id}:shared:${price.variable}`, message: 'Enter a finite, non-negative price.' })
+    }
+    return `${price.variable} * ${price.value}`
+  })
+  return `(${sharedTerms.join(' + ')}) + (${body})`
 }
 
 export function serializeVisualBillingDocument(

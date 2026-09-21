@@ -54,6 +54,31 @@ test('opens two-range thinking prices visually', async () => {
   expect(onBillingExprChange.mock.lastCall?.[0]).toContain('tier("Long context thinking", p * 7 + c * 24)')
 })
 
+test('edits one shared input and separate outputs for each thinking range', () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'three-range-shared-input-thinking-output')
+  assert(preset)
+  const onBillingExprChange = vi.fn()
+  render(<TieredPricingEditor
+    billingExpr={preset.expr}
+    requestRuleExpr=''
+    onBillingExprChange={onBillingExprChange}
+    onRequestRuleExprChange={vi.fn()}
+  />)
+
+  expect(screen.getAllByRole('textbox', { name: 'Shared input price' })).toHaveLength(4)
+  expect(screen.getAllByRole('textbox', { name: 'Thinking output price' })).toHaveLength(4)
+  expect(screen.getAllByRole('textbox', { name: 'Non-thinking output price' })).toHaveLength(4)
+
+  fireEvent.change(screen.getAllByRole('textbox', { name: 'Shared input price' })[0], {
+    target: { value: '1.25' },
+  })
+  const updated = onBillingExprChange.mock.lastCall?.[0]
+  assert(updated)
+  expect(updated).toContain('(p * 1.25) + (tier("0-128K thinking (shared input)", c * 4.8))')
+  expect(updated).toContain('(p * 1.25) + (tier("0-128K non-thinking (shared input)", c * 3.6))')
+})
+
 test('removes the final thinking tier without losing its non-thinking sibling', async () => {
   const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
     .find((item) => item.key === 'three-range-thinking-output')

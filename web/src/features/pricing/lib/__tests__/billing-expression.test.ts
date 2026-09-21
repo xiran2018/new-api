@@ -172,6 +172,28 @@ test('shared input thinking template edits each price without duplicating input'
   }
 })
 
+test('shared input range template bills one input and separate thinking outputs', () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'three-range-shared-input-thinking-output')
+  assert(preset)
+  const document = parseVisualBillingDocument(preset.expr)
+  assert(document)
+  const serialized = serializeVisualBillingDocument(document)
+  assert(serialized.ok)
+
+  for (const [length, thinking, cost, tier] of [
+    [100000, false, 116, '0-128K non-thinking (shared input)'],
+    [100000, true, 128, '0-128K thinking (shared input)'],
+    [200000, false, 290, '128K-256K non-thinking (shared input)'],
+    [200000, true, 320, '128K-256K thinking (shared input)'],
+  ] as const) {
+    expect(evaluateBillingExpression(serialized.source, {
+      tokens: { p: 100, c: 10, len: length },
+      request: { body: { enable_thinking: thinking } },
+    })).toMatchObject({ status: 'success', cost, matchedTier: tier })
+  }
+})
+
 test('two-range thinking tariff bills both configured ranges', () => {
   const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
     .find((item) => item.key === 'two-range-thinking-output')

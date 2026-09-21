@@ -528,6 +528,137 @@ function isSharedThinkingPrice(document: VisualBillingDocument): boolean {
     branch.no.prices.length === 1 && branch.no.prices[0].variable === 'c'
 }
 
+type SharedThinkingRange = {
+  id: string
+  condition?: VisualCondition
+  thinking: Extract<VisualPricingNode, { kind: 'tier' }>
+  nonThinking: Extract<VisualPricingNode, { kind: 'tier' }>
+}
+
+type ThinkingPair = Extract<VisualPricingNode, { kind: 'branch' }> & {
+  yes: Extract<VisualPricingNode, { kind: 'tier' }>
+  no: Extract<VisualPricingNode, { kind: 'tier' }>
+}
+
+function isThinkingPair(node: VisualPricingNode): node is ThinkingPair {
+  if (node.kind !== 'branch' || node.condition.kind !== 'request-comparison') return false
+  if (node.condition.source !== 'param' || node.condition.path !== 'enable_thinking' || node.condition.operator !== '==' || node.condition.value !== true) return false
+  return node.yes.kind === 'tier' && node.no.kind === 'tier' &&
+    node.yes.billingUnit === 'token' && node.no.billingUnit === 'token' &&
+    node.yes.sharedPrices?.some((price) => price.variable === 'p') === true &&
+    node.no.sharedPrices?.some((price) => price.variable === 'p') === true &&
+    node.yes.prices.some((price) => price.variable === 'c') &&
+    node.no.prices.some((price) => price.variable === 'c')
+}
+
+function collectSharedThinkingRanges(root: VisualPricingNode): SharedThinkingRange[] | null {
+  const ranges: SharedThinkingRange[] = []
+  let current: VisualPricingNode = root
+  while (current.kind === 'branch') {
+    if (isThinkingPair(current)) {
+      ranges.push({ id: current.id, thinking: current.yes, nonThinking: current.no })
+      break
+    }
+    if (!isThinkingPair(current.yes)) return null
+    ranges.push({ id: current.id, condition: current.condition, thinking: current.yes.yes, nonThinking: current.yes.no })
+    current = current.no
+  }
+  return ranges.length >= 2 ? ranges : null
+}
+
+function updateVisualNode(
+  node: VisualPricingNode,
+  id: string,
+  update: (node: VisualPricingNode) => VisualPricingNode,
+): VisualPricingNode {
+  if (node.id === id) return update(node)
+  if (node.kind !== 'branch') return node
+  return { ...node, yes: updateVisualNode(node.yes, id, update), no: updateVisualNode(node.no, id, update) }
+}
+
+function SharedInputThinkingRangesEditor(props: {
+  document: VisualBillingDocument
+  currency: PricingCurrency
+  issues: VisualBillingIssue[]
+  ranges: SharedThinkingRange[]
+  onChange: (document: VisualBillingDocument) => void
+}) {
+  const { t, i18n } = useTranslation()
+  const updateTier = (id: string, update: (tier: Extract<VisualPricingNode, { kind: 'tier' }>) => Extract<VisualPricingNode, { kind: 'tier' }>) =>
+    props.onChange({ ...props.document, root: updateVisualNode(props.document.root, id, (node) => update(node as Extract<VisualPricingNode, { kind: 'tier' }>) ) })
+  return (
+    <div className='space-y-3'>
+      <p className='text-muted-foreground text-xs'>{t('Each token range uses one shared input price. Thinking and non-thinking output prices can be set separately.')}</p>
+      {props.ranges.map((range, index) => {
+        const shared = range.thinking.sharedPrices?.find((price) => price.variable === 'p')
+        const thinking = range.thinking.prices.find((price) => price.variable === 'c')
+        const nonThinking = range.nonThinking.prices.find((price) => price.variable === 'c')
+        if (!shared || !thinking || !nonThinking) return null
+        const condition = range.condition && visualConditionExpression(range.condition, props.document.source)
+        const setShared = (value: string) => {
+          const set = (tier: Extract<VisualPricingNode, { kind: 'tier' }>) => ({
+            ...tier,
+            sharedPrices: tier.sharedPrices?.map((price) => price.variable === 'p' ? { ...price, value } : price),
+          })
+          props.onChange({
+            ...props.document,
+            root: updateVisualNode(updateVisualNode(props.document.root, range.thinking.id, (node) => set(node as Extract<VisualPricingNode, { kind: 'tier' }>)), range.nonThinking.id, (node) => set(node as Extract<VisualPricingNode, { kind: 'tier' }>)),
+          })
+        }
+        const setOutput = (tierId: string, variable: 'c', value: string) => updateTier(tierId, (tier) => ({ ...tier, prices: tier.prices.map((price) => price.variable === variable ? { ...price, value } : price) }))
+        const setLabel = (tierId: string, value: string) => updateTier(tierId, (tier) => ({ ...tier, label: value }))
+        const setRangeLimit = (value: string) => {
+          if (!range.condition || range.condition.kind !== 'comparison') return
+          const next = { ...range.condition, value }
+          props.onChange({
+            ...props.document,
+            root: updateVisualNode(props.document.root, range.id, (node) =>
+              node.kind === 'branch' ? syncDefaultTierNames({ ...node, condition: next }, node.condition, next) : node
+            ),
+          })
+        }
+        const issueFor = (id: string) => props.issues.some((issue) => issue.id === `${id}:shared:p` || issue.id === `${id}:c`)
+        return (
+          <section key={range.id} className='space-y-3 rounded-xl border bg-muted/20 p-3'>
+            <div className='flex flex-wrap items-center gap-2'>
+              <Badge variant='secondary'>{t('Tier')} {index + 1}</Badge>
+              <span className='text-muted-foreground text-sm'>{condition ? formatBillingCondition(condition, t, i18n.language) : t('Fallback tier')}</span>
+            </div>
+            {range.condition?.kind === 'comparison' && range.condition.probe === 'len' && (
+              <label className='block max-w-xs space-y-2 text-sm font-medium'>
+                <span>{t('Maximum input length')}</span>
+                <Input aria-label={t('Maximum input length')} inputMode='numeric' value={range.condition.value} onChange={(event) => setRangeLimit(event.target.value)} />
+                {tokenLengthLabel(range.condition.value) && (
+                  <span className='text-muted-foreground block text-xs font-normal'>
+                    {tokenLengthLabel(range.condition.value)} Token
+                  </span>
+                )}
+              </label>
+            )}
+            <div className='grid gap-4 md:grid-cols-3'>
+              <label className='space-y-2 text-sm font-medium'>
+                <span>{t('Shared input price')}</span>
+                <PricingAmountInput aria-label={t('Shared input price')} currency={props.currency} value={shared.value} onChange={setShared} aria-invalid={issueFor(range.thinking.id) || undefined} />
+                <span className='text-muted-foreground block text-xs font-normal'>{props.currency.symbol}/{t('1M token')}</span>
+              </label>
+              <label className='space-y-2 text-sm font-medium'>
+                <span>{t('Non-thinking output price')}</span>
+                <PricingAmountInput aria-label={t('Non-thinking output price')} currency={props.currency} value={nonThinking.value} onChange={(value) => setOutput(range.nonThinking.id, 'c', value)} aria-invalid={props.issues.some((issue) => issue.id === `${range.nonThinking.id}:c`) || undefined} />
+                <Input aria-label={t('Non-thinking tier name')} value={range.nonThinking.label} onChange={(event) => setLabel(range.nonThinking.id, event.target.value)} />
+              </label>
+              <label className='space-y-2 text-sm font-medium'>
+                <span>{t('Thinking output price')}</span>
+                <PricingAmountInput aria-label={t('Thinking output price')} currency={props.currency} value={thinking.value} onChange={(value) => setOutput(range.thinking.id, 'c', value)} aria-invalid={props.issues.some((issue) => issue.id === `${range.thinking.id}:c`) || undefined} />
+                <Input aria-label={t('Thinking tier name')} value={range.thinking.label} onChange={(event) => setLabel(range.thinking.id, event.target.value)} />
+              </label>
+            </div>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
 export function VisualBillingDocumentEditor(props: {
   document: VisualBillingDocument
   currency: PricingCurrency
@@ -537,6 +668,10 @@ export function VisualBillingDocumentEditor(props: {
   const { t } = useTranslation()
   if (isSharedThinkingPrice(props.document)) {
     return <SharedThinkingPriceEditor {...props} />
+  }
+  const sharedThinkingRanges = collectSharedThinkingRanges(props.document.root)
+  if (sharedThinkingRanges) {
+    return <SharedInputThinkingRangesEditor {...props} ranges={sharedThinkingRanges} />
   }
   const shared = props.document.shared
   return (
