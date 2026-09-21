@@ -69,6 +69,8 @@ test('edits one shared input and separate outputs for each thinking range', () =
   expect(screen.getAllByRole('textbox', { name: 'Shared input price' })).toHaveLength(4)
   expect(screen.getAllByRole('textbox', { name: 'Thinking output price' })).toHaveLength(4)
   expect(screen.getAllByRole('textbox', { name: 'Non-thinking output price' })).toHaveLength(4)
+  expect(screen.queryByRole('textbox', { name: 'Thinking tier name' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('textbox', { name: 'Non-thinking tier name' })).not.toBeInTheDocument()
 
   fireEvent.change(screen.getAllByRole('textbox', { name: 'Shared input price' })[0], {
     target: { value: '1.25' },
@@ -77,6 +79,36 @@ test('edits one shared input and separate outputs for each thinking range', () =
   assert(updated)
   expect(updated).toContain('(p * 1.25) + (tier("0-128K thinking (shared input)", c * 4.8))')
   expect(updated).toContain('(p * 1.25) + (tier("0-128K non-thinking (shared input)", c * 3.6))')
+})
+
+test('removes a complete shared-input thinking range', async () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'three-range-shared-input-thinking-output')
+  assert(preset)
+  const onBillingExprChange = vi.fn()
+  render(<TieredPricingEditor
+    billingExpr={preset.expr}
+    requestRuleExpr=''
+    onBillingExprChange={onBillingExprChange}
+    onRequestRuleExprChange={vi.fn()}
+  />)
+
+  const removeButtons = screen.getAllByRole('button', { name: 'Remove tier' })
+  expect(removeButtons).toHaveLength(4)
+  await userEvent.setup().click(removeButtons[3])
+
+  const updated = onBillingExprChange.mock.lastCall?.[0]
+  assert(updated)
+  expect(updated).not.toContain('1M+ thinking (shared input)')
+  expect(updated).not.toContain('1M+ non-thinking (shared input)')
+  expect(updated).toContain('256K-1M thinking (shared input)')
+  expect(updated).toContain('256K-1M non-thinking (shared input)')
+  expect(
+    evaluateBillingExpression(updated, {
+      tokens: { p: 100, c: 10, len: 1000001 },
+      request: { body: { enable_thinking: true } },
+    })
+  ).toMatchObject({ status: 'success', matchedTier: '256K-1M thinking (shared input)' })
 })
 
 test('removes the final thinking tier without losing its non-thinking sibling', async () => {

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ChevronDown, Pencil } from 'lucide-react'
+import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -563,7 +563,7 @@ function collectSharedThinkingRanges(root: VisualPricingNode): SharedThinkingRan
     ranges.push({ id: current.id, condition: current.condition, thinking: current.yes.yes, nonThinking: current.yes.no })
     current = current.no
   }
-  return ranges.length >= 2 ? ranges : null
+  return ranges.length >= 1 ? ranges : null
 }
 
 function updateVisualNode(
@@ -574,6 +574,20 @@ function updateVisualNode(
   if (node.id === id) return update(node)
   if (node.kind !== 'branch') return node
   return { ...node, yes: updateVisualNode(node.yes, id, update), no: updateVisualNode(node.no, id, update) }
+}
+
+function removeSharedThinkingRange(
+  node: VisualPricingNode,
+  range: SharedThinkingRange,
+): VisualPricingNode {
+  if (node.kind !== 'branch') return node
+  if (range.condition && node.id === range.id) return node.no
+  if (!range.condition && node.no.id === range.id) return node.yes
+  return {
+    ...node,
+    yes: removeSharedThinkingRange(node.yes, range),
+    no: removeSharedThinkingRange(node.no, range),
+  }
 }
 
 function SharedInputThinkingRangesEditor(props: {
@@ -606,7 +620,6 @@ function SharedInputThinkingRangesEditor(props: {
           })
         }
         const setOutput = (tierId: string, variable: 'c', value: string) => updateTier(tierId, (tier) => ({ ...tier, prices: tier.prices.map((price) => price.variable === variable ? { ...price, value } : price) }))
-        const setLabel = (tierId: string, value: string) => updateTier(tierId, (tier) => ({ ...tier, label: value }))
         const setRangeLimit = (value: string) => {
           if (!range.condition || range.condition.kind !== 'comparison') return
           const next = { ...range.condition, value }
@@ -623,6 +636,21 @@ function SharedInputThinkingRangesEditor(props: {
             <div className='flex flex-wrap items-center gap-2'>
               <Badge variant='secondary'>{t('Tier')} {index + 1}</Badge>
               <span className='text-muted-foreground text-sm'>{condition ? formatBillingCondition(condition, t, i18n.language) : t('Fallback tier')}</span>
+              {props.ranges.length > 1 && (
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  className='ml-auto'
+                  aria-label={t('Remove tier')}
+                  onClick={() => props.onChange({
+                    ...props.document,
+                    root: removeSharedThinkingRange(props.document.root, range),
+                  })}
+                >
+                  <Trash2 className='text-destructive h-4 w-4' />
+                </Button>
+              )}
             </div>
             {range.condition?.kind === 'comparison' && range.condition.probe === 'len' && (
               <label className='block max-w-xs space-y-2 text-sm font-medium'>
@@ -644,12 +672,10 @@ function SharedInputThinkingRangesEditor(props: {
               <label className='space-y-2 text-sm font-medium'>
                 <span>{t('Non-thinking output price')}</span>
                 <PricingAmountInput aria-label={t('Non-thinking output price')} currency={props.currency} value={nonThinking.value} onChange={(value) => setOutput(range.nonThinking.id, 'c', value)} aria-invalid={props.issues.some((issue) => issue.id === `${range.nonThinking.id}:c`) || undefined} />
-                <Input aria-label={t('Non-thinking tier name')} value={range.nonThinking.label} onChange={(event) => setLabel(range.nonThinking.id, event.target.value)} />
               </label>
               <label className='space-y-2 text-sm font-medium'>
                 <span>{t('Thinking output price')}</span>
                 <PricingAmountInput aria-label={t('Thinking output price')} currency={props.currency} value={thinking.value} onChange={(value) => setOutput(range.thinking.id, 'c', value)} aria-invalid={props.issues.some((issue) => issue.id === `${range.thinking.id}:c`) || undefined} />
-                <Input aria-label={t('Thinking tier name')} value={range.thinking.label} onChange={(event) => setLabel(range.thinking.id, event.target.value)} />
               </label>
             </div>
           </section>
