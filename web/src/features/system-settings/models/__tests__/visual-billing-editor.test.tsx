@@ -71,6 +71,9 @@ test('edits one shared input and separate outputs for each thinking range', () =
   expect(screen.getAllByRole('textbox', { name: 'Non-thinking output price' })).toHaveLength(4)
   expect(screen.queryByRole('textbox', { name: 'Thinking tier name' })).not.toBeInTheDocument()
   expect(screen.queryByRole('textbox', { name: 'Non-thinking tier name' })).not.toBeInTheDocument()
+  expect(screen.getAllByText('128K')).toHaveLength(1)
+  expect(screen.getAllByText('256K')).toHaveLength(1)
+  expect(screen.getAllByText('1M')).toHaveLength(1)
 
   fireEvent.change(screen.getAllByRole('textbox', { name: 'Shared input price' })[0], {
     target: { value: '1.25' },
@@ -79,6 +82,27 @@ test('edits one shared input and separate outputs for each thinking range', () =
   assert(updated)
   expect(updated).toContain('(p * 1.25) + (tier("0-128K thinking (shared input)", c * 4.8))')
   expect(updated).toContain('(p * 1.25) + (tier("0-128K non-thinking (shared input)", c * 3.6))')
+})
+
+test('allows renaming the default shared-input thinking tier', () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'three-range-shared-input-thinking-output')
+  assert(preset)
+  const onBillingExprChange = vi.fn()
+  render(<TieredPricingEditor
+    billingExpr={preset.expr}
+    requestRuleExpr=''
+    onBillingExprChange={onBillingExprChange}
+    onRequestRuleExprChange={vi.fn()}
+  />)
+
+  const defaultName = screen.getByRole('textbox', { name: 'Default tier name' })
+  expect(defaultName).toHaveValue('1M+')
+  fireEvent.change(defaultName, { target: { value: '超长上下文' } })
+  const updated = onBillingExprChange.mock.lastCall?.[0]
+  assert(updated)
+  expect(updated).toContain('tier("超长上下文 thinking (shared input)"')
+  expect(updated).toContain('tier("超长上下文 non-thinking (shared input)"')
 })
 
 test('removes a complete shared-input thinking range', async () => {

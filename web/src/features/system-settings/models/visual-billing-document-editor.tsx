@@ -590,6 +590,14 @@ function removeSharedThinkingRange(
   }
 }
 
+function sharedThinkingTierName(label: string): string {
+  return label
+    .replace(/\s*\(shared\s+input\)\s*/i, ' ')
+    .replace(/\s*(?:non[-\s]?thinking|thinking)\b\s*/i, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function SharedInputThinkingRangesEditor(props: {
   document: VisualBillingDocument
   currency: PricingCurrency
@@ -620,6 +628,25 @@ function SharedInputThinkingRangesEditor(props: {
           })
         }
         const setOutput = (tierId: string, variable: 'c', value: string) => updateTier(tierId, (tier) => ({ ...tier, prices: tier.prices.map((price) => price.variable === variable ? { ...price, value } : price) }))
+        const setFallbackName = (value: string) => {
+          const normalized = value.trim() || t('Fallback tier')
+          const setLabel = (tier: Extract<VisualPricingNode, { kind: 'tier' }>, variant: 'thinking' | 'non-thinking') => ({
+            ...tier,
+            label: `${normalized} ${variant} (shared input)`,
+          })
+          props.onChange({
+            ...props.document,
+            root: updateVisualNode(
+              updateVisualNode(
+                props.document.root,
+                range.thinking.id,
+                (node) => setLabel(node as Extract<VisualPricingNode, { kind: 'tier' }>, 'thinking'),
+              ),
+              range.nonThinking.id,
+              (node) => setLabel(node as Extract<VisualPricingNode, { kind: 'tier' }>, 'non-thinking'),
+            ),
+          })
+        }
         const setRangeLimit = (value: string) => {
           if (!range.condition || range.condition.kind !== 'comparison') return
           const next = { ...range.condition, value }
@@ -655,12 +682,24 @@ function SharedInputThinkingRangesEditor(props: {
             {range.condition?.kind === 'comparison' && range.condition.probe === 'len' && (
               <label className='block max-w-xs space-y-2 text-sm font-medium'>
                 <span>{t('Maximum input length')}</span>
-                <Input aria-label={t('Maximum input length')} inputMode='numeric' value={range.condition.value} onChange={(event) => setRangeLimit(event.target.value)} />
-                {tokenLengthLabel(range.condition.value) && (
-                  <span className='text-muted-foreground block text-xs font-normal'>
-                    {tokenLengthLabel(range.condition.value)} Token
-                  </span>
-                )}
+                <div className='flex items-center gap-2'>
+                  <Input aria-label={t('Maximum input length')} inputMode='numeric' value={range.condition.value} onChange={(event) => setRangeLimit(event.target.value)} />
+                  {tokenLengthLabel(range.condition.value) && (
+                    <span className='text-muted-foreground shrink-0 text-sm font-normal'>
+                      {tokenLengthLabel(range.condition.value)}
+                    </span>
+                  )}
+                </div>
+              </label>
+            )}
+            {!range.condition && (
+              <label className='block max-w-md space-y-2 text-sm font-medium'>
+                <span>{t('Default tier name')}</span>
+                <Input
+                  aria-label={t('Default tier name')}
+                  value={sharedThinkingTierName(range.thinking.label)}
+                  onChange={(event) => setFallbackName(event.target.value)}
+                />
               </label>
             )}
             <div className='grid gap-4 md:grid-cols-3'>
