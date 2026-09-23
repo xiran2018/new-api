@@ -35,6 +35,57 @@ const expression =
 const chainedExpression =
   'len <= 32000 && c <= 200 ? tier("discount", p * 0.8 + c * 2 + cr * 0.16 + cc * 0.17) : len <= 32000 ? tier("short", p * 0.8 + c * 8 + cr * 0.16 + cc * 0.17) : len <= 128000 ? tier("mid", p * 1.2 + c * 16 + cr * 0.16 + cc * 0.17) : tier("long", p * 2.4 + c * 24 + cr * 0.16 + cc * 0.17)'
 
+test('edits shared image/video input once and keeps three Omni output prices', () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'omni-shared-media-input-output-modes')
+  assert(preset)
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={preset.expr}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+
+  expect(screen.getAllByRole('textbox', { name: 'Image / video input' })).toHaveLength(1)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Image / video input' }), {
+    target: { value: '5' },
+  })
+  const updated = onBillingExprChange.mock.lastCall?.[0]
+  assert(updated)
+  expect(updated).toContain('img * 5')
+  expect(updated).toContain('vid * 5')
+
+  fireEvent.change(screen.getByRole('textbox', { name: 'Pure text output' }), {
+    target: { value: '7' },
+  })
+  const outputUpdated = onBillingExprChange.mock.lastCall?.[0]
+  assert(outputUpdated)
+  expect(outputUpdated).toContain('tier("pure text output (shared image/video input)", c * 7)')
+})
+
+test('bills every shared-input Omni output branch with the configured prices', () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'omni-shared-media-input-output-modes')
+  assert(preset)
+  const tokens = { p: 0, c: 0, img: 0, vid: 0, ai: 0, ao: 0 }
+
+  expect(evaluateBillingExpression(preset.expr, {
+    tokens: { ...tokens, p: 100, c: 100 },
+  })).toMatchObject({ status: 'success', cost: 870 })
+  expect(evaluateBillingExpression(preset.expr, {
+    tokens: { ...tokens, img: 100, c: 100 },
+  })).toMatchObject({ status: 'success', cost: 1600 })
+  expect(evaluateBillingExpression(preset.expr, {
+    tokens: { ...tokens, ai: 100, c: 100 },
+  })).toMatchObject({ status: 'success', cost: 2850 })
+  expect(evaluateBillingExpression(preset.expr, {
+    tokens: { ...tokens, p: 100, c: 100, ao: 100 },
+  })).toMatchObject({ status: 'success', cost: 6440 })
+})
+
 test('opens two-range thinking prices visually', async () => {
   const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
     .find((item) => item.key === 'two-range-thinking-output')

@@ -49,6 +49,10 @@ import {
 
 import { TierPriceFields } from './tier-price-fields'
 import { VisualConditionTree } from './visual-condition-tree'
+import {
+  PlatformVisualBillingDocumentEditor,
+  supportsPlatformVisualBillingDocumentEditor,
+} from '@/platform/model-prices/visual-billing-document-editor'
 
 type PricingNodeProps = {
   node: VisualPricingNode
@@ -731,6 +735,9 @@ export function VisualBillingDocumentEditor(props: {
   onChange: (document: VisualBillingDocument) => void
 }) {
   const { t } = useTranslation()
+  if (supportsPlatformVisualBillingDocumentEditor(props.document)) {
+    return <PlatformVisualBillingDocumentEditor {...props} />
+  }
   if (isSharedThinkingPrice(props.document)) {
     return <SharedThinkingPriceEditor {...props} />
   }
