@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -413,6 +413,26 @@ function PricingRuleCard(
   )
 }
 
+function cloneConditionForNewTier(condition: VisualCondition): VisualCondition {
+  if (condition.kind === 'all' || condition.kind === 'any') {
+    return {
+      ...condition,
+      id: visualNodeId(),
+      origin: undefined,
+      children: condition.children.map(cloneConditionForNewTier),
+    }
+  }
+  if (condition.kind === 'not') {
+    return {
+      ...condition,
+      id: visualNodeId(),
+      origin: undefined,
+      child: cloneConditionForNewTier(condition.child),
+    }
+  }
+  return { ...condition, id: visualNodeId(), origin: undefined }
+}
+
 function PricingRuleList(props: PricingNodeProps & { prefix: string }) {
   const { t } = useTranslation()
   const rules: VisualPricingNode[] = []
@@ -450,29 +470,93 @@ function PricingRuleList(props: PricingNodeProps & { prefix: string }) {
     }
     props.onChange(root)
   }
+  const addRule = () => {
+    const finalModeRule = rules.length >= 2
+      ? rules.at(-2)
+      : undefined
+    const hasFinalModeRule = finalModeRule?.kind === 'branch' &&
+      finalModeRule.condition.kind === 'request-comparison' &&
+      finalModeRule.no.kind === 'tier'
+    const fallback = hasFinalModeRule ? finalModeRule : rules.at(-1)
+    if (!fallback || (fallback.kind !== 'tier' && !hasFinalModeRule)) return
+    const previousBranch = rules.at(hasFinalModeRule ? -3 : -2)
+    const condition = previousBranch?.kind === 'branch'
+      ? cloneConditionForNewTier(previousBranch.condition)
+      : createEmptyVisualCondition()
+    if (condition.kind === 'comparison' && condition.probe === 'len') {
+      const current = Number(condition.value)
+      if (Number.isFinite(current) && current > 0) {
+        condition.value = String(Math.round(current * 2))
+      }
+    }
+    const cloneFallback = (node: VisualPricingNode): VisualPricingNode => {
+      if (node.kind === 'tier') {
+        const lower = node.label.toLowerCase()
+        const suffix = lower.includes('non-thinking')
+          ? ' non-thinking'
+          : lower.includes('thinking') ? ' thinking' : ''
+        return {
+          ...node,
+          id: visualNodeId(),
+          origin: undefined,
+          label: `${t('New pricing tier')}${suffix}`,
+          prices: node.prices.map(({ variable, value }) => ({ variable, value })),
+          sharedPrices: node.sharedPrices?.map(({ variable, value }) => ({ variable, value })),
+        }
+      }
+      return {
+        ...node,
+        id: visualNodeId(),
+        origin: undefined,
+        condition: cloneConditionForNewTier(node.condition),
+        yes: cloneFallback(node.yes),
+        no: cloneFallback(node.no),
+      }
+    }
+    const inserted: VisualPricingNode = {
+      id: visualNodeId(),
+      kind: 'branch',
+      condition,
+      yes: cloneFallback(fallback),
+      no: fallback,
+    }
+    let root: VisualPricingNode = inserted
+    const firstWrappedIndex = hasFinalModeRule ? rules.length - 3 : rules.length - 2
+    for (let previous = firstWrappedIndex; previous >= 0; previous--) {
+      const branch = rules[previous]
+      if (branch.kind === 'branch') root = { ...branch, no: root }
+    }
+    props.onChange(root)
+  }
   return (
-    <ol aria-label={t('Pricing rules')} className='min-w-0 space-y-3'>
-      {rules.map((node, index) => (
-        <li key={node.id} className='min-w-0'>
-          <PricingRuleCard
-            {...props}
-            node={node}
-            number={`${props.prefix}${index + 1}`}
-            first={index === 0}
-            fallback={index > 0 && node.kind === 'tier'}
-            onRemove={() => removeRule(index)}
-            onChange={(next) => {
-              let root = next
-              for (let previous = index - 1; previous >= 0; previous--) {
-                const branch = rules[previous]
-                if (branch.kind === 'branch') root = { ...branch, no: root }
-              }
-              props.onChange(root)
-            }}
-          />
-        </li>
-      ))}
-    </ol>
+    <div className='space-y-3'>
+      <ol aria-label={t('Pricing rules')} className='min-w-0 space-y-3'>
+        {rules.map((node, index) => (
+          <li key={node.id} className='min-w-0'>
+            <PricingRuleCard
+              {...props}
+              node={node}
+              number={`${props.prefix}${index + 1}`}
+              first={index === 0}
+              fallback={index > 0 && node.kind === 'tier'}
+              onRemove={() => removeRule(index)}
+              onChange={(next) => {
+                let root = next
+                for (let previous = index - 1; previous >= 0; previous--) {
+                  const branch = rules[previous]
+                  if (branch.kind === 'branch') root = { ...branch, no: root }
+                }
+                props.onChange(root)
+              }}
+            />
+          </li>
+        ))}
+      </ol>
+      <Button type='button' variant='outline' size='sm' onClick={addRule}>
+        <Plus className='mr-2 size-4' />
+        {t('Add pricing tier')}
+      </Button>
+    </div>
   )
 }
 
@@ -594,6 +678,93 @@ function removeSharedThinkingRange(
   }
 }
 
+function cloneSharedTier(
+  tier: Extract<VisualPricingNode, { kind: 'tier' }>,
+  label: string
+): Extract<VisualPricingNode, { kind: 'tier' }> {
+  return {
+    ...tier,
+    id: visualNodeId(),
+    origin: undefined,
+    label,
+    prices: tier.prices.map(({ variable, value }) => ({ variable, value })),
+    sharedPrices: tier.sharedPrices?.map(({ variable, value }) => ({ variable, value })),
+  }
+}
+
+function insertSharedThinkingRange(
+  node: VisualPricingNode,
+  fallback: SharedThinkingRange,
+  condition: VisualCondition,
+  baseName: string
+): VisualPricingNode {
+  if (node.id === fallback.id) {
+    const modeCondition: VisualCondition = {
+      id: visualNodeId(),
+      kind: 'request-comparison',
+      source: 'param',
+      path: 'enable_thinking',
+      operator: '==',
+      value: true,
+    }
+    const thinking = cloneSharedTier(
+      fallback.thinking,
+      `${baseName} thinking (shared input)`
+    )
+    const nonThinking = cloneSharedTier(
+      fallback.nonThinking,
+      `${baseName} non-thinking (shared input)`
+    )
+    const mode: VisualPricingNode = {
+      id: visualNodeId(),
+      kind: 'branch',
+      condition: modeCondition,
+      yes: thinking,
+      no: nonThinking,
+    }
+    return {
+      id: visualNodeId(),
+      kind: 'branch',
+      condition,
+      yes: mode,
+      no: node,
+    }
+  }
+  if (node.kind !== 'branch') return node
+  return {
+    ...node,
+    yes: insertSharedThinkingRange(node.yes, fallback, condition, baseName),
+    no: insertSharedThinkingRange(node.no, fallback, condition, baseName),
+  }
+}
+
+function nextSharedThinkingRangeCondition(
+  ranges: SharedThinkingRange[]
+): VisualCondition {
+  const previous = [...ranges]
+    .reverse()
+    .find((range) => range.condition?.kind === 'comparison')?.condition
+  if (previous?.kind === 'comparison' && previous.probe === 'len') {
+    const value = Number(previous.value)
+    if (Number.isFinite(value) && value > 0) {
+      return {
+        ...previous,
+        id: visualNodeId(),
+        origin: undefined,
+        value: String(Math.round(value * 2)),
+      }
+    }
+  }
+  return {
+    id: visualNodeId(),
+    kind: 'comparison',
+    probe: 'len',
+    timezone: '',
+    operator: '<=',
+    value: '128000',
+  }
+}
+
 function sharedThinkingTierName(label: string): string {
   return label
     .replace(/\s*\(shared\s+input\)\s*/i, ' ')
@@ -632,8 +803,8 @@ function SharedInputThinkingRangesEditor(props: {
           })
         }
         const setOutput = (tierId: string, variable: 'c', value: string) => updateTier(tierId, (tier) => ({ ...tier, prices: tier.prices.map((price) => price.variable === variable ? { ...price, value } : price) }))
-        const setFallbackName = (value: string) => {
-          const normalized = value.trim() || t('Fallback tier')
+        const setTierName = (value: string) => {
+          const normalized = value.trim() || (range.condition ? t('New pricing tier') : t('Fallback tier'))
           const setLabel = (tier: Extract<VisualPricingNode, { kind: 'tier' }>, variant: 'thinking' | 'non-thinking') => ({
             ...tier,
             label: `${normalized} ${variant} (shared input)`,
@@ -696,16 +867,14 @@ function SharedInputThinkingRangesEditor(props: {
                 </div>
               </label>
             )}
-            {!range.condition && (
-              <label className='block max-w-md space-y-2 text-sm font-medium'>
-                <span>{t('Default tier name')}</span>
+            <label className='block max-w-md space-y-2 text-sm font-medium'>
+                <span>{range.condition ? t('Tier name') : t('Default tier name')}</span>
                 <Input
-                  aria-label={t('Default tier name')}
+                  aria-label={range.condition ? t('Tier name') : t('Default tier name')}
                   value={sharedThinkingTierName(range.thinking.label)}
-                  onChange={(event) => setFallbackName(event.target.value)}
+                  onChange={(event) => setTierName(event.target.value)}
                 />
               </label>
-            )}
             <div className='grid gap-4 md:grid-cols-3'>
               <label className='space-y-2 text-sm font-medium'>
                 <span>{t('Shared input price')}</span>
@@ -724,6 +893,27 @@ function SharedInputThinkingRangesEditor(props: {
           </section>
         )
       })}
+      <Button
+        type='button'
+        variant='outline'
+        size='sm'
+        onClick={() => {
+          const fallback = props.ranges.at(-1)
+          if (!fallback) return
+          props.onChange({
+            ...props.document,
+            root: insertSharedThinkingRange(
+              props.document.root,
+              fallback,
+              nextSharedThinkingRangeCondition(props.ranges),
+              t('New pricing tier'),
+            ),
+          })
+        }}
+      >
+        <Plus className='mr-2 size-4' />
+        {t('Add pricing tier')}
+      </Button>
     </div>
   )
 }

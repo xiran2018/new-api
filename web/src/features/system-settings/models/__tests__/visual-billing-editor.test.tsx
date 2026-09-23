@@ -186,6 +186,81 @@ test('removes a complete shared-input thinking range', async () => {
   ).toMatchObject({ status: 'success', matchedTier: '256K-1M thinking (shared input)' })
 })
 
+test('adds a shared-input thinking range before the fallback tier', async () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'three-range-shared-input-thinking-output')
+  assert(preset)
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={preset.expr}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+
+  await userEvent.setup().click(
+    screen.getAllByRole('button', { name: 'Add pricing tier' }).at(-1)!
+  )
+  expect(screen.getAllByRole('button', { name: 'Remove tier' })).toHaveLength(5)
+  const updated = onBillingExprChange.mock.lastCall?.[0]
+  assert(updated)
+  expect(updated).toContain('tier("New pricing tier thinking (shared input)"')
+  expect(updated).toContain('tier("1M+ thinking (shared input)"')
+  expect(evaluateBillingExpression(updated, {
+    tokens: { p: 100, c: 10, len: 1500000 },
+    request: { body: { enable_thinking: true } },
+  })).toMatchObject({ status: 'success', matchedTier: 'New pricing tier thinking (shared input)' })
+})
+
+test('adds a peer tier to a regular chained pricing expression', async () => {
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={chainedExpression}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+
+  await userEvent.setup().click(screen.getAllByRole('button', { name: 'Add pricing tier' }).at(-1)!)
+  expect(
+    within(screen.getByRole('list', { name: 'Pricing rules' }))
+      .getAllByRole('listitem')
+      .filter((item) => item.parentElement?.getAttribute('aria-label') === 'Pricing rules')
+  ).toHaveLength(5)
+  const updated = onBillingExprChange.mock.lastCall?.[0]
+  assert(updated)
+  expect(updated).toContain('tier("New pricing tier"')
+})
+
+test('adds a complete thinking/non-thinking range to the three-range template', async () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'three-range-thinking-output')
+  assert(preset)
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={preset.expr}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+
+  await userEvent.setup().click(screen.getAllByRole('button', { name: 'Add pricing tier' }).at(-1)!)
+  const updated = onBillingExprChange.mock.lastCall?.[0]
+  assert(updated)
+  expect(updated).toContain('tier("New pricing tier thinking"')
+  expect(updated).toContain('tier("New pricing tier non-thinking"')
+  expect(evaluateBillingExpression(updated, {
+    tokens: { p: 100, c: 10, len: 1500000 },
+    request: { body: { enable_thinking: true } },
+  })).toMatchObject({ status: 'success', matchedTier: 'New pricing tier thinking' })
+})
+
 test('removes the final thinking tier without losing its non-thinking sibling', async () => {
   const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
     .find((item) => item.key === 'three-range-thinking-output')
