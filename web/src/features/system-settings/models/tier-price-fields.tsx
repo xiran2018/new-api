@@ -67,6 +67,7 @@ type PriceFieldProps = {
   hint?: string
   value: number | string
   onChange: (next: string) => void
+  fractionDigits?: number
   included?: boolean
   onInclude?: (included: boolean) => void
   invalid?: boolean
@@ -80,6 +81,7 @@ function PriceField({
   value,
   onChange,
   currency,
+  fractionDigits,
   included,
   onInclude,
   invalid,
@@ -108,6 +110,7 @@ function PriceField({
         aria-label={label}
         value={value}
         onChange={onChange}
+        fractionDigits={fractionDigits}
         disabled={included === false}
         aria-invalid={invalid || undefined}
         className='h-8 w-full'
@@ -163,6 +166,7 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
       }
       value={props.prices[variable.key] ?? 0}
       onChange={(value) => props.onChange(variable.key, value)}
+      fractionDigits={variable.key === 'aud_s' ? 6 : undefined}
       included={
         props.onInclude ? props.prices[variable.key] !== undefined : undefined
       }

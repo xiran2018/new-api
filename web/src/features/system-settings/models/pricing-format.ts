@@ -61,10 +61,16 @@ export function formatPricingNumber(value: unknown): string {
   return Number.parseFloat(normalized.toFixed(DISPLAY_DECIMALS)).toString()
 }
 
-export function formatPricingDisplayNumber(value: unknown): string {
+export function formatPricingDisplayNumber(
+  value: unknown,
+  decimals = PRICE_DISPLAY_DECIMALS
+): string {
   const num = toNumberOrNull(value)
   if (num === null) return ''
 
-  const normalized = Math.abs(num) < 0.0005 ? 0 : num
-  return normalized.toFixed(PRICE_DISPLAY_DECIMALS)
+  const safeDecimals = Number.isInteger(decimals)
+    ? Math.min(20, Math.max(0, decimals))
+    : PRICE_DISPLAY_DECIMALS
+  const normalized = Math.abs(num) < 0.5 * 10 ** -safeDecimals ? 0 : num
+  return normalized.toFixed(safeDecimals)
 }

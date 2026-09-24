@@ -36,6 +36,7 @@ type PricingAmountInputProps = Omit<
   onChange: (usd: string) => void
   currency?: PricingCurrency
   grouped?: boolean
+  fractionDigits?: number
 }
 
 /** The parent owns USD; only this input owns the uncommitted display string. */
@@ -44,10 +45,14 @@ export function PricingAmountInput({
   onChange,
   currency = USD_PRICING_CURRENCY,
   grouped,
+  fractionDigits = 3,
   ...props
 }: PricingAmountInputProps) {
   const { t } = useTranslation()
   const errorId = useId()
+  const displayFractionDigits = Number.isInteger(fractionDigits)
+    ? Math.min(20, Math.max(0, fractionDigits))
+    : 3
   const source = String(value)
   const [draft, setDraft] = useState<{
     text: string
@@ -59,14 +64,13 @@ export function PricingAmountInput({
   if (value !== '') {
     displayed = String(displayAmount)
     if (Number.isFinite(displayAmount)) {
-      displayed = Number(formatPricingDisplayNumber(displayAmount)).toLocaleString(
-        'en-US',
-        {
-          useGrouping: false,
-          minimumFractionDigits: 3,
-          maximumFractionDigits: 3,
-        }
-      )
+      displayed = Number(
+        formatPricingDisplayNumber(displayAmount, displayFractionDigits)
+      ).toLocaleString('en-US', {
+        useGrouping: false,
+        minimumFractionDigits: displayFractionDigits,
+        maximumFractionDigits: displayFractionDigits,
+      })
     }
   }
   const text =
