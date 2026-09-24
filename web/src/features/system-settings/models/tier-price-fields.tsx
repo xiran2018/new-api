@@ -73,6 +73,7 @@ type PriceFieldProps = {
   invalid?: boolean
   addonKey?: string
   addonScope?: string
+  addonScopeId?: string
 }
 
 function PriceField({
@@ -87,6 +88,7 @@ function PriceField({
   invalid,
   addonKey,
   addonScope,
+  addonScopeId,
 }: PriceFieldProps) {
   const id = useId()
   const { t } = useTranslation()
@@ -120,6 +122,7 @@ function PriceField({
         <PricingFieldAddon
           key={addonKey}
           scope={addonScope}
+          scopeId={addonScopeId}
           value={String(value)}
         />
       )}
@@ -140,6 +143,7 @@ type TierPriceFieldsProps = {
   onCacheModeChange?: (mode: CacheMode) => void
   invalidVariables?: string[]
   scope?: string
+  scopeId?: string
 }
 export function TierPriceFields(props: TierPriceFieldsProps) {
   const { t } = useTranslation()
@@ -178,6 +182,7 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
       invalid={props.invalidVariables?.includes(variable.key)}
       addonKey={variable.key}
       addonScope={props.scope}
+      addonScopeId={props.scopeId}
     />
   )
   const billingControl = props.onBillingUnitChange && (
@@ -221,6 +226,7 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
           invalid={props.invalidVariables?.includes('fixed')}
           addonKey='fixed'
           addonScope={props.scope}
+          addonScopeId={props.scopeId}
         />
       </>
     )

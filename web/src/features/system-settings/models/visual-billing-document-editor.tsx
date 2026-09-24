@@ -115,6 +115,7 @@ function syncDefaultTierNames(
 function PricingTierFields(
   props: PricingNodeProps & {
     node: Extract<VisualPricingNode, { kind: 'tier' }>
+    scopeId: string
   }
 ) {
   const { t } = useTranslation()
@@ -188,6 +189,7 @@ function PricingTierFields(
           issue.id.slice(node.id.length + 1)
         )}
         scope={node.label}
+        scopeId={props.scopeId}
         onChange={(variable, value) =>
           props.onChange({
             ...node,
@@ -386,6 +388,7 @@ function PricingRuleCard(
             <PricingTierFields
               {...props}
               node={tier}
+              scopeId={props.number}
               onChange={(next) =>
                 props.onChange(
                   node.kind === 'tier' ? next : { ...node, yes: next }
@@ -955,6 +958,7 @@ export function VisualBillingDocumentEditor(props: {
               .filter((issue) => issue.id.startsWith(`${shared.id}:`))
               .map((issue) => issue.id.slice(shared.id.length + 1))}
             scope={t('Shared input pricing')}
+            scopeId='shared'
             onChange={(variable, value) =>
               props.onChange({
                 ...props.document,
