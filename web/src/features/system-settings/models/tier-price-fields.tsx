@@ -120,7 +120,7 @@ function PriceField({
       {hint && <p className='text-muted-foreground text-xs'>{hint}</p>}
       {addonKey && (
         <PricingFieldAddon
-          key={addonKey}
+          fieldKey={addonKey}
           scope={addonScope}
           scopeId={addonScopeId}
           value={String(value)}

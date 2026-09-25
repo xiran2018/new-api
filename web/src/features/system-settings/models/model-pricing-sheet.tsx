@@ -1160,7 +1160,7 @@ export const ModelPricingEditorPanel = forwardRef<
                                     {t('per request')}
                                   </InputGroupAddon>
                                 </InputGroup>
-                                <PricingFieldAddon key='request' value={field.value ?? ''} />
+                                <PricingFieldAddon fieldKey='request' value={field.value ?? ''} />
                                 <FormDescription>
                                   {t(
                                     'Cost in {{currency}} per request, regardless of tokens used.',

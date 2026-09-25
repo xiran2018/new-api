@@ -53,6 +53,7 @@ import {
   PlatformVisualBillingDocumentEditor,
   supportsPlatformVisualBillingDocumentEditor,
 } from '@/platform/model-prices/visual-billing-document-editor'
+import { PricingFieldAddon } from '@/platform/model-prices/pricing-field-addon'
 
 type PricingNodeProps = {
   node: VisualPricingNode
@@ -574,12 +575,13 @@ function SharedThinkingPriceEditor(props: {
   const branch = props.document.root as Extract<VisualPricingNode, { kind: 'branch' }>
   const thinking = branch.yes as Extract<VisualPricingNode, { kind: 'tier' }>
   const standard = branch.no as Extract<VisualPricingNode, { kind: 'tier' }>
+  const scopeIds = collectVisualTierScopeIds(props.document.root)
   const fields = [
-    { label: t('Input price'), price: shared.prices[0], id: shared.id,
+    { label: t('Input price'), price: shared.prices[0], id: shared.id, scope: undefined, scopeId: 'shared',
       update: (value: string) => props.onChange({ ...props.document, shared: { ...shared, prices: [{ ...shared.prices[0], value }] } }) },
-    { label: t('Non-thinking output price'), price: standard.prices[0], id: standard.id,
+    { label: t('Non-thinking output price'), price: standard.prices[0], id: standard.id, scope: standard.label, scopeId: scopeIds.get(standard.id),
       update: (value: string) => props.onChange({ ...props.document, root: { ...branch, no: { ...standard, prices: [{ ...standard.prices[0], value }] } } }) },
-    { label: t('Thinking output price'), price: thinking.prices[0], id: thinking.id,
+    { label: t('Thinking output price'), price: thinking.prices[0], id: thinking.id, scope: thinking.label, scopeId: scopeIds.get(thinking.id),
       update: (value: string) => props.onChange({ ...props.document, root: { ...branch, yes: { ...thinking, prices: [{ ...thinking.prices[0], value }] } } }) },
   ]
   return (
@@ -593,6 +595,12 @@ function SharedThinkingPriceEditor(props: {
             value={field.price.value}
             onChange={field.update}
             aria-invalid={props.issues.some((issue) => issue.id === `${field.id}:${field.price.variable}`) || undefined}
+          />
+          <PricingFieldAddon
+            fieldKey={field.price.variable}
+            scope={field.scope}
+            scopeId={field.scopeId}
+            value={field.price.value}
           />
           <span className='text-muted-foreground block text-xs font-normal'>
             {props.currency.symbol}/{t('1M token')}
@@ -776,6 +784,31 @@ function sharedThinkingTierName(label: string): string {
     .trim()
 }
 
+function collectVisualTierScopeIds(
+  node: VisualPricingNode,
+  result = new Map<string, string>(),
+  prefix = '',
+): Map<string, string> {
+  const rules: VisualPricingNode[] = []
+  let current = node
+  while (current.kind === 'branch') {
+    rules.push(current)
+    current = current.no
+  }
+  rules.push(current)
+
+  rules.forEach((rule, index) => {
+    const scopeId = `${prefix}${index + 1}`
+    const tier = rule.kind === 'tier' ? rule : rule.yes
+    if (tier.kind === 'tier') {
+      result.set(tier.id, scopeId)
+    } else {
+      collectVisualTierScopeIds(tier, result, `${scopeId}.`)
+    }
+  })
+  return result
+}
+
 function SharedInputThinkingRangesEditor(props: {
   document: VisualBillingDocument
   currency: PricingCurrency
@@ -784,6 +817,7 @@ function SharedInputThinkingRangesEditor(props: {
   onChange: (document: VisualBillingDocument) => void
 }) {
   const { t, i18n } = useTranslation()
+  const scopeIds = collectVisualTierScopeIds(props.document.root)
   const updateTier = (id: string, update: (tier: Extract<VisualPricingNode, { kind: 'tier' }>) => Extract<VisualPricingNode, { kind: 'tier' }>) =>
     props.onChange({ ...props.document, root: updateVisualNode(props.document.root, id, (node) => update(node as Extract<VisualPricingNode, { kind: 'tier' }>) ) })
   return (
@@ -882,15 +916,18 @@ function SharedInputThinkingRangesEditor(props: {
               <label className='space-y-2 text-sm font-medium'>
                 <span>{t('Shared input price')}</span>
                 <PricingAmountInput aria-label={t('Shared input price')} currency={props.currency} value={shared.value} onChange={setShared} aria-invalid={issueFor(range.thinking.id) || undefined} />
+                <PricingFieldAddon fieldKey='p' scope={range.thinking.label} scopeId={scopeIds.get(range.thinking.id)} value={shared.value} />
                 <span className='text-muted-foreground block text-xs font-normal'>{props.currency.symbol}/{t('1M token')}</span>
               </label>
               <label className='space-y-2 text-sm font-medium'>
                 <span>{t('Non-thinking output price')}</span>
                 <PricingAmountInput aria-label={t('Non-thinking output price')} currency={props.currency} value={nonThinking.value} onChange={(value) => setOutput(range.nonThinking.id, 'c', value)} aria-invalid={props.issues.some((issue) => issue.id === `${range.nonThinking.id}:c`) || undefined} />
+                <PricingFieldAddon fieldKey='c' scope={range.nonThinking.label} scopeId={scopeIds.get(range.nonThinking.id)} value={nonThinking.value} />
               </label>
               <label className='space-y-2 text-sm font-medium'>
                 <span>{t('Thinking output price')}</span>
                 <PricingAmountInput aria-label={t('Thinking output price')} currency={props.currency} value={thinking.value} onChange={(value) => setOutput(range.thinking.id, 'c', value)} aria-invalid={props.issues.some((issue) => issue.id === `${range.thinking.id}:c`) || undefined} />
+                <PricingFieldAddon fieldKey='c' scope={range.thinking.label} scopeId={scopeIds.get(range.thinking.id)} value={thinking.value} />
               </label>
             </div>
           </section>

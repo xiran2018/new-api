@@ -70,7 +70,7 @@ export function PriceInput(props: {
       </InputGroup>
       {props.addonKey && (
         <PricingFieldAddon
-          key={props.addonKey}
+          fieldKey={props.addonKey}
           scope={props.addonScope}
           value={props.value}
         />

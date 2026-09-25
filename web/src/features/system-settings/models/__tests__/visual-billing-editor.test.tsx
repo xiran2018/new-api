@@ -25,6 +25,7 @@ import { assert, describe, expect, test, vi } from 'vitest'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { evaluateBillingExpression } from '@/features/pricing/lib/billing-expression/runtime'
 import { PLATFORM_BILLING_PRESET_GROUPS } from '@/platform/model-prices/expression-presets'
+import { PricingFieldAddonProvider } from '@/platform/model-prices/pricing-field-addon'
 
 import { BillingConditionValueInput } from '../billing-time-fields'
 import { TieredPricingEditor } from '../tiered-pricing-editor'
@@ -34,6 +35,57 @@ const expression =
 
 const chainedExpression =
   'len <= 32000 && c <= 200 ? tier("discount", p * 0.8 + c * 2 + cr * 0.16 + cc * 0.17) : len <= 32000 ? tier("short", p * 0.8 + c * 8 + cr * 0.16 + cc * 0.17) : len <= 128000 ? tier("mid", p * 1.2 + c * 16 + cr * 0.16 + cc * 0.17) : tier("long", p * 2.4 + c * 24 + cr * 0.16 + cc * 0.17)'
+
+function renderPresetWithPriceAddons(presetKey: string) {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === presetKey)
+  assert(preset)
+  render(
+    <PricingFieldAddonProvider
+      renderer={({ key, scope, scopeId }) => (
+        <span data-testid='pricing-addon'>{`${key}|${scope ?? ''}|${scopeId ?? ''}`}</span>
+      )}
+    >
+      <TieredPricingEditor
+        billingExpr={preset.expr}
+        requestRuleExpr=''
+        onBillingExprChange={vi.fn()}
+        onRequestRuleExprChange={vi.fn()}
+      />
+    </PricingFieldAddonProvider>
+  )
+  return screen.getAllByTestId('pricing-addon').map((item) => item.textContent || '')
+}
+
+test('passes all Qwen3 Omni specialized price fields to the vendor comparison addon', () => {
+  const addons = renderPresetWithPriceAddons('omni-shared-media-input-output-modes')
+
+  expect(addons).toHaveLength(6)
+  expect(addons.map((item) => item.split('|')[0])).toEqual([
+    'p', 'ai', 'img', 'c', 'c', 'ao',
+  ])
+  expect(addons.every((item) => item.split('|')[2])).toBe(true)
+})
+
+test('passes shared input and thinking outputs to the vendor comparison addon', () => {
+  const addons = renderPresetWithPriceAddons('shared-input-thinking-output')
+
+  expect(addons).toContain('p||shared')
+  expect(addons).toContain('c|non-thinking output|2')
+  expect(addons).toContain('c|thinking output|1')
+})
+
+test('uses different stable addon paths for every shared-input thinking range', () => {
+  const addons = renderPresetWithPriceAddons('three-range-shared-input-thinking-output')
+
+  expect(addons).toHaveLength(12)
+  const paths = addons.map((item) => item.split('|')[2])
+  expect(new Set(paths)).toEqual(new Set([
+    '1.1', '1.2', '2.1', '2.2', '3.1', '3.2', '4', '5',
+  ]))
+  expect(addons.filter((item) => item.startsWith('p|'))).toHaveLength(4)
+  expect(addons.filter((item) => item.startsWith('c|'))).toHaveLength(8)
+})
 
 test('edits shared image/video input once and keeps three Omni output prices', () => {
   const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
