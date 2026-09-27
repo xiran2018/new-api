@@ -147,6 +147,14 @@ const Z_IMAGE_USAGE_SCHEMA = {
 // usage.output_image_count, usage.output_image_type and usage.input_image_count.
 const QWEN_IMAGE3_USAGE_SCHEMA = {
   image_count: IMAGE_COUNT_FIELD,
+  // Human-readable aliases used by the visual pricing editor. These are
+  // populated together with the provider-specific facts below, so old and
+  // new expressions remain compatible.
+  resolution_tier: {
+    enum: ["1K", "2K"],
+    enumLabels: { "1K": { en: "1K output", zh: "1K 输出" }, "2K": { en: "2K output", zh: "2K 输出" } },
+    description: { en: "Output image resolution tier", zh: "输出图片分辨率档位" },
+  },
   output_image_type: {
     enum: ["qima_output_1k", "qima_output_2k"],
     enumLabels: { qima_output_1k: { en: "1K output", zh: "1K 输出" }, qima_output_2k: { en: "2K output", zh: "2K 输出" } },
@@ -157,6 +165,18 @@ const QWEN_IMAGE3_USAGE_SCHEMA = {
     unit: "count",
     unitLabel: IMAGE_UNIT_LABEL,
     description: { en: "Input image unit price", zh: "输入图片单价" },
+  },
+  input_images: {
+    type: "number",
+    unit: "count",
+    unitLabel: IMAGE_UNIT_LABEL,
+    description: { en: "Input image count", zh: "输入图片张数" },
+  },
+  output_images: {
+    type: "number",
+    unit: "count",
+    unitLabel: IMAGE_UNIT_LABEL,
+    description: { en: "Output image count", zh: "输出图片张数" },
   },
 };
 
@@ -423,6 +443,36 @@ function sizePixels(size) {
   return { width: width, height: height, pixels: width * height };
 }
 
+// Qwen-Image-3.0 usage may report an explicit 1K/2K preset while requests
+// commonly carry a width*height size. Keep the tier names editable in the
+// pricing UI, but normalize both forms to the two provider billing tiers.
+function qwenImageTierFromSize(size) {
+  if (typeof size !== "string") return undefined;
+  const normalized = size.trim().toUpperCase().replace(/X/g, "*");
+  if (normalized === "1K") return "1K";
+  if (normalized === "2K") return "2K";
+  const dims = sizePixels(normalized);
+  if (!dims) return undefined;
+  return dims.pixels <= QWEN_IMAGE3_TIER_MAX_PIXELS ? "1K" : "2K";
+}
+
+function qwenImageTierFromUsage(value) {
+  if (value === "qima_output_1k" || value === "1K") return "1K";
+  if (value === "qima_output_2k" || value === "2K") return "2K";
+  return undefined;
+}
+
+function qwenImageTypeForTier(tier) {
+  return tier === "1K" ? "qima_output_1k" : "qima_output_2k";
+}
+
+function qwenRequestSize(ctx) {
+  const req = ctx && ctx.requestBody && typeof ctx.requestBody === "object" ? ctx.requestBody : {};
+  const metadata = req.metadata && typeof req.metadata === "object" && !Array.isArray(req.metadata) ? req.metadata : {};
+  const parameters = metadata.parameters && typeof metadata.parameters === "object" && !Array.isArray(metadata.parameters) ? metadata.parameters : {};
+  return parameters.size ?? req.size;
+}
+
 function convertImage(ctx) {
   const req = ctx.requestBody || {};
   const model = ctx.upstreamModel || req.model;
@@ -626,12 +676,16 @@ function convertImage(ctx) {
 // tier). Completion facts replace these key by key.
 function imageEstimate(ctx, converted) {
   const parameters = converted.body.parameters;
-  const facts = { image_count: parameters.enable_interleave ? parameters.max_images : parameters.n };
+  const imageCount = parameters.enable_interleave ? parameters.max_images : parameters.n;
+  const facts = { image_count: imageCount };
   if (zImage(ctx)) facts.prompt_extend = parameters.prompt_extend === true;
   if (qwenImage3(ctx)) {
-    const dims = typeof parameters.size === "string" ? sizePixels(parameters.size) : null;
-    facts.output_image_type = dims && dims.pixels <= QWEN_IMAGE3_TIER_MAX_PIXELS ? "qima_output_1k" : "qima_output_2k";
+    const tier = qwenImageTierFromSize(parameters.size) || "2K";
+    facts.output_image_type = qwenImageTypeForTier(tier);
+    facts.resolution_tier = tier;
     facts.input_image_count = converted.inputImages;
+    facts.input_images = converted.inputImages;
+    facts.output_images = imageCount;
   }
   return facts;
 }
@@ -683,9 +737,24 @@ function imageUsage(ctx, body) {
   else return {};
   const facts = { image_count: count };
   if (qwenImage3(ctx)) {
-    if (QWEN_IMAGE3_USAGE_SCHEMA.output_image_type.enum.includes(usage.output_image_type)) facts.output_image_type = usage.output_image_type;
-    if (Number.isInteger(usage.input_image_count) && usage.input_image_count >= 0 && usage.input_image_count <= 3)
-      facts.input_image_count = usage.input_image_count;
+    let tier = qwenImageTierFromUsage(usage.output_image_type) || qwenImageTierFromUsage(usage.resolution_tier);
+    if (!tier) tier = qwenImageTierFromSize(qwenRequestSize(ctx));
+    if (!tier) tier = "2K";
+    facts.output_image_type = qwenImageTypeForTier(tier);
+    facts.resolution_tier = tier;
+    facts.output_images = count;
+    let inputCount = usage.input_image_count ?? usage.input_images;
+    if (!Number.isInteger(inputCount)) {
+      try {
+        inputCount = convertImage(ctx).inputImages;
+      } catch (_) {
+        inputCount = undefined;
+      }
+    }
+    if (Number.isInteger(inputCount) && inputCount >= 0 && inputCount <= 3) {
+      facts.input_image_count = inputCount;
+      facts.input_images = inputCount;
+    }
   }
   return facts;
 }
