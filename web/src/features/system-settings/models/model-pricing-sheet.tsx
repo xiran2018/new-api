@@ -138,6 +138,7 @@ type ModelPricingEditorPanelProps = Omit<
 > & {
   className?: string
   embedded?: boolean
+  showPricingCurrencySelector?: boolean
   scrollHeader?: ReactNode
   additionalPricingTab?: { label: ReactNode; content: ReactNode }
   additionalPricingActive?: boolean
@@ -208,6 +209,7 @@ export const ModelPricingEditorPanel = forwardRef<
     pluginVariants,
     onDirtyChange,
     embedded = false,
+    showPricingCurrencySelector = true,
     scrollHeader,
     additionalPricingTab,
     additionalPricingActive = false,
@@ -921,7 +923,9 @@ export const ModelPricingEditorPanel = forwardRef<
                   />
                 )}
 
-                <PricingCurrencySelector siteCurrency={siteCurrency} />
+                {showPricingCurrencySelector && (
+                  <PricingCurrencySelector siteCurrency={siteCurrency} />
+                )}
 
                 <TaskPluginPricingEditor
                   key={`${editorReloadToken}:${watchedValues.name}`}
