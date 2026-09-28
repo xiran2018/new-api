@@ -187,6 +187,13 @@ func GetPricingSyncData(base map[string]any) map[string]any {
 // ---------------------------------------------------------------------------
 
 func SmokeTestExpr(exprStr string) error {
+	// Realtime session duration is observed by the server rather than supplied
+	// by a task plugin. Keep this exception at the common smoke-test boundary so
+	// callers that do not know the model type cannot accidentally reject a valid
+	// GPT-Live expression as having no task usage schema.
+	if billingexpr.UsedUsageKeys(exprStr)["live_session_seconds"] && IsRequestUsageExpr(exprStr) {
+		return SmokeTestRequestUsageExpr(exprStr)
+	}
 	return smokeTestExpr(exprStr)
 }
 

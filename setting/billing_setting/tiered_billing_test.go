@@ -126,6 +126,10 @@ func TestSmokeTestRequestUsageExprAcceptsTTSCharacterPrices(t *testing.T) {
 func TestSmokeTestRequestUsageExprAcceptsRealtimeSessionDuration(t *testing.T) {
 	expression := `tier("GPT-Live session", u("live_session_seconds") * (0.05 * 1000000 / 60))`
 	require.NoError(t, SmokeTestRequestUsageExpr(expression))
+	// Some preview and compatibility paths only have a generic expression and
+	// call SmokeTestExpr directly. The common entry point must recognize the
+	// server-observed Realtime usage field as well.
+	require.NoError(t, SmokeTestExpr(expression))
 	require.True(t, IsRequestUsageExpr(expression))
 	require.False(t, TaskExprCompatible(expression, map[string]jsplugin.UsageFieldSchema{}))
 }
