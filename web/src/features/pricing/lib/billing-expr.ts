@@ -148,6 +148,15 @@ export const BILLING_VARS: BillingVar[] = [
     group: 'media',
   },
   {
+    key: 'ai_cr',
+    field: 'audioCachePrice',
+    tierField: 'audio_cache_unit_cost',
+    label: 'Audio cache input price',
+    shortLabel: 'Audio Cache',
+    side: 'input',
+    group: 'cache',
+  },
+  {
     key: 'vid',
     field: 'videoInputPrice',
     tierField: 'video_input_unit_cost',

@@ -345,11 +345,12 @@ func InjectTieredBillingInfo(other *model.LogOther, relayInfo *relaycommon.Relay
 	if result != nil {
 		if tokens := result.BillingTokens; tokens != nil && result.BillingUnit == billingexpr.BillingUnitToken {
 			other.SetPublic("image_cache_tokens", tokens.ImgCR)
+			other.SetPublic("audio_cache_tokens", tokens.AICR)
 			other.SetPublic("billing_tokens", map[string]float64{
 				"p": tokens.P, "c": tokens.C, "len": tokens.Len,
 				"cr": tokens.CR, "cc": tokens.CC, "cc1h": tokens.CC1h,
 				"img": tokens.Img, "img_cr": tokens.ImgCR, "img_o": tokens.ImgO,
-				"ai": tokens.AI, "ao": tokens.AO,
+				"ai": tokens.AI, "ai_cr": tokens.AICR, "ao": tokens.AO,
 			})
 		}
 		if result.ImageCount != nil {

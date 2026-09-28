@@ -54,6 +54,7 @@ const PROBE_LABELS: Record<VisualComparison['probe'], string> = {
   img_cr: 'Cached image input tokens',
   img_o: 'Image output tokens',
   ai: 'Audio input tokens',
+  ai_cr: 'Audio cache input tokens',
   ao: 'Audio output tokens',
   vid: 'Video input tokens',
   vid_o: 'Video output tokens',

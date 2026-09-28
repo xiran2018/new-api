@@ -56,6 +56,7 @@ const extras: ExtraTokenValues = {
   imageOutputTokens: 0,
   imageCacheTokens: 0,
   audioInputTokens: 0,
+  audioCacheTokens: 0,
   audioOutputTokens: 0,
 }
 
@@ -253,6 +254,35 @@ test('evaluates and round-trips separate image cache prices including an explici
   const freeResult = serializeVisualBillingDocument(freeCache)
   assert(freeResult.ok)
   expect(freeResult.source).toContain('img_cr * 0')
+})
+
+test('evaluates and round-trips separate text image and audio cached-input prices', () => {
+  const source =
+    'tier("realtime modalities", p * 1 + cr * 0.5 + c * 1 + img * 2 + img_cr * 0.75 + img_o * 3 + ai * 4 + ai_cr * 1.25 + ao * 5)'
+  const document = parseVisualBillingDocument(source)
+  assert(document)
+  const regenerated = serializeVisualBillingDocument(document)
+  assert(regenerated.ok)
+  expect(regenerated.source).toContain('ai_cr * 1.25')
+  expect(
+    evaluateBillingExpression(regenerated.source, {
+      tokens: {
+        p: 100,
+        cr: 20,
+        c: 30,
+        img: 40,
+        img_cr: 10,
+        img_o: 5,
+        ai: 50,
+        ai_cr: 15,
+        ao: 25,
+      },
+    })
+  ).toMatchObject({
+    status: 'success',
+    cost: 586.25,
+    matchedTier: 'realtime modalities',
+  })
 })
 
 export const peakCondition =

@@ -667,8 +667,15 @@ type PresetSectionProps = {
 function PresetSection({ applyPreset }: PresetSectionProps) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
-  const visible = expanded ? PRESET_GROUPS : PRESET_GROUPS.slice(0, 2)
-  const hasMore = PRESET_GROUPS.length > 2
+  const alwaysVisibleGroups = new Set([
+    'Fixed price',
+    'Tiered',
+    'Platform multimodal',
+  ])
+  const visible = expanded
+    ? PRESET_GROUPS
+    : PRESET_GROUPS.filter((group) => alwaysVisibleGroups.has(group.group))
+  const hasMore = visible.length < PRESET_GROUPS.length
 
   return (
     <div className='space-y-2'>
@@ -739,6 +746,7 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
     imageCacheTokens: 0,
     imageOutputTokens: 0,
     audioInputTokens: 0,
+    audioCacheTokens: 0,
     audioOutputTokens: 0,
   })
 

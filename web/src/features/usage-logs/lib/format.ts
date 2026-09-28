@@ -334,6 +334,7 @@ export function hasAnyCacheTokens(
   return (
     (other.cache_tokens || 0) > 0 ||
     (other.image_cache_tokens || 0) > 0 ||
+    (other.audio_cache_tokens || 0) > 0 ||
     (other.cache_creation_tokens || 0) > 0 ||
     (other.cache_creation_tokens_5m || 0) > 0 ||
     (other.cache_creation_tokens_1h || 0) > 0

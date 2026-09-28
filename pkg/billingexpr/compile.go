@@ -136,6 +136,7 @@ var compileEnvPrototypeV1 = map[string]any{
 	"img_cr":      float64(0),
 	"img_o":       float64(0),
 	"ai":          float64(0),
+	"ai_cr":       float64(0),
 	"ao":          float64(0),
 	"vid":         float64(0),
 	"vid_o":       float64(0),

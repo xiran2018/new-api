@@ -27,6 +27,7 @@ export const TOKEN_VARIABLES = [
   'img_cr',
   'img_o',
   'ai',
+  'ai_cr',
   'ao',
   'vid',
   'vid_o',

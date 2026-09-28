@@ -36,18 +36,17 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	}
 
 	img := float64(usage.PromptTokensDetails.ImageTokens)
+	ai := float64(usage.PromptTokensDetails.AudioTokens)
 	imgCR := float64(0)
-	if usedVars["img_cr"] && !isClaudeUsageSemantic {
+	aiCR := float64(0)
+	if (usedVars["img_cr"] || usedVars["ai_cr"]) && !isClaudeUsageSemantic {
 		details := usage.PromptTokensDetails.CachedTokensDetails
-		if details != nil && details.ImageTokens != nil {
-			cachedImage := *details.ImageTokens
+		if details != nil {
 			cached := usage.PromptTokensDetails.CachedTokens
-			image := usage.PromptTokensDetails.ImageTokens
-			valid := cachedImage >= 0 && cached >= cachedImage && image >= cachedImage &&
-				cached <= usage.PromptTokens && image <= usage.PromptTokens-(cached-cachedImage)
+			valid := cached >= 0 && cached <= usage.PromptTokens
+			remaining := cached
 			if valid {
-				remaining := cached - cachedImage
-				for _, count := range []*int{details.TextTokens, details.AudioTokens} {
+				for _, count := range []*int{details.TextTokens, details.ImageTokens, details.AudioTokens} {
 					if count == nil {
 						continue
 					}
@@ -58,21 +57,33 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 					remaining -= *count
 				}
 			}
+			if valid && details.ImageTokens != nil && *details.ImageTokens > usage.PromptTokensDetails.ImageTokens {
+				valid = false
+			}
+			if valid && details.AudioTokens != nil && *details.AudioTokens > usage.PromptTokensDetails.AudioTokens {
+				valid = false
+			}
 			if valid {
-				imgCR = float64(cachedImage)
-				cr -= imgCR
-				img -= imgCR
+				if usedVars["img_cr"] && details.ImageTokens != nil {
+					imgCR = float64(*details.ImageTokens)
+					cr -= imgCR
+					img -= imgCR
+				}
+				if usedVars["ai_cr"] && details.AudioTokens != nil {
+					aiCR = float64(*details.AudioTokens)
+					cr -= aiCR
+					ai -= aiCR
+				}
 			} else {
-				common.SysError("invalid image cache token breakdown; using aggregate cache billing")
+				common.SysError("invalid modality cache token breakdown; using aggregate cache billing")
 			}
 		}
 	}
-	ai := float64(usage.PromptTokensDetails.AudioTokens)
 	imgO := float64(usage.CompletionTokenDetails.ImageTokens)
 	ao := float64(usage.CompletionTokenDetails.AudioTokens)
 	vi := float64(usage.PromptTokensDetails.VideoTokens)
 	vo := float64(usage.CompletionTokenDetails.VideoTokens)
-	audioSeconds := ai * 60 / 1000
+	audioSeconds := float64(usage.PromptTokensDetails.AudioTokens) * 60 / 1000
 
 	// len = total input context length for tier condition evaluation.
 	// Non-Claude: prompt_tokens already includes everything.
@@ -106,6 +117,9 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 		}
 		if usedVars["ai"] || usedVars["aud_s"] {
 			p -= ai
+		}
+		if usedVars["ai_cr"] {
+			p -= aiCR
 		}
 		if usedVars["vid"] {
 			p -= vi
@@ -141,6 +155,7 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 		ImgCR: imgCR,
 		ImgO:  imgO,
 		AI:    ai,
+		AICR:  aiCR,
 		AO:    ao,
 		VI:    vi,
 		VO:    vo,

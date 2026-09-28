@@ -822,6 +822,61 @@ func TestImageCacheBilling(t *testing.T) {
 	}
 }
 
+func TestRealtimeModalityCacheBilling(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 300,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 300,
+			ImageTokens:  200,
+			AudioTokens:  250,
+			CachedTokensDetails: &dto.CachedTokenDetails{
+				TextTokens:  common.GetPointer(100),
+				ImageTokens: common.GetPointer(80),
+				AudioTokens: common.GetPointer(120),
+			},
+		},
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			ImageTokens: 50,
+			AudioTokens: 100,
+		},
+	}
+	expression := `tier("realtime", p * 1 + cr * 2 + c * 3 + img * 4 + img_cr * 5 + img_o * 6 + ai * 7 + ai_cr * 8 + ao * 9)`
+	params := BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression))
+
+	assert.Equal(t, float64(450), params.P)
+	assert.Equal(t, float64(100), params.CR)
+	assert.Equal(t, float64(120), params.Img)
+	assert.Equal(t, float64(80), params.ImgCR)
+	assert.Equal(t, float64(130), params.AI)
+	assert.Equal(t, float64(120), params.AICR)
+	assert.Equal(t, float64(150), params.C)
+	assert.Equal(t, float64(50), params.ImgO)
+	assert.Equal(t, float64(100), params.AO)
+
+	cost, _, err := billingexpr.RunExpr(expression, params)
+	require.NoError(t, err)
+	assert.Equal(t, float64(5050), cost)
+}
+
+func TestRealtimeAudioCacheRequiresUpstreamBreakdown(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 100,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 300,
+			AudioTokens:  250,
+		},
+	}
+	expression := `tier("realtime", p * 1 + cr * 2 + ai * 7 + ai_cr * 8 + c * 3)`
+	params := BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression))
+
+	assert.Equal(t, float64(450), params.P)
+	assert.Equal(t, float64(300), params.CR)
+	assert.Equal(t, float64(250), params.AI)
+	assert.Zero(t, params.AICR)
+}
+
 func TestBuildTieredTokenParams_Claude_WithCache(t *testing.T) {
 	usage := &dto.Usage{
 		PromptTokens:     800,

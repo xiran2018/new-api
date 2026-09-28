@@ -102,6 +102,9 @@ export const STATIC_I18N_KEYS = [
   // Image cache billing and legacy price conversion.
   'Image cache input price',
   'Image Cache',
+  'Audio cache input price',
+  'Audio cache input tokens',
+  'Audio Cache',
   'Per-token (deprecated)',
   'Per-request (deprecated)',
   'This model already uses an expression.',

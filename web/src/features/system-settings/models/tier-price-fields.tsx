@@ -49,11 +49,26 @@ const PRICE_VARS = BILLING_EXTRA_VARS.map((variable) => ({
   key: variable.key as VisualPrice['variable'],
 }))
 const CACHE_PRICE_VARS = PRICE_VARS.filter(
-  (variable) => variable.group === 'cache' && variable.key !== 'img_cr'
+  (variable) =>
+    variable.group === 'cache' &&
+    variable.key !== 'img_cr' &&
+    variable.key !== 'ai_cr'
 )
-const MEDIA_PRICE_ORDER = ['img', 'img_cr', 'img_o', 'vid', 'vid_o', 'ai', 'ao']
+const MEDIA_PRICE_ORDER = [
+  'img',
+  'img_cr',
+  'img_o',
+  'vid',
+  'vid_o',
+  'ai',
+  'ai_cr',
+  'ao',
+]
 const MEDIA_PRICE_VARS = PRICE_VARS.filter(
-  (variable) => variable.group === 'media' || variable.key === 'img_cr'
+  (variable) =>
+    variable.group === 'media' ||
+    variable.key === 'img_cr' ||
+    variable.key === 'ai_cr'
 ).sort(
   (left, right) =>
     MEDIA_PRICE_ORDER.indexOf(left.key) - MEDIA_PRICE_ORDER.indexOf(right.key)
