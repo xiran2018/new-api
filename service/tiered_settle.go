@@ -215,14 +215,26 @@ func PrepareTieredBillingForSelectedGroup(c *gin.Context, relayInfo *relaycommon
 //   - ok=true, quota, result  when tiered billing applies
 //   - ok=false, 0, nil        when it doesn't (caller should fall through to existing logic)
 func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenParams) (ok bool, quota int, result *billingexpr.TieredResult) {
+	return TryTieredSettleWithUsage(relayInfo, params, nil)
+}
+
+// TryTieredSettleWithUsage evaluates tiered billing with server-observed usage
+// facts. Dynamic usage is merged into a deep copy of the frozen request input,
+// so settlement cannot mutate the request snapshot captured before relay.
+func TryTieredSettleWithUsage(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenParams, usage map[string]any) (ok bool, quota int, result *billingexpr.TieredResult) {
 	snap := relayInfo.TieredBillingSnapshot
 	if snap == nil || snap.BillingMode != "tiered_expr" {
 		return false, 0, nil
 	}
 
-	requestInput := billingexpr.RequestInput{}
-	if relayInfo.BillingRequestInput != nil {
-		requestInput = *relayInfo.BillingRequestInput
+	requestInput := cloneTieredRequestInput(relayInfo.BillingRequestInput)
+	if len(usage) > 0 {
+		if requestInput.Usage == nil {
+			requestInput.Usage = make(map[string]any, len(usage))
+		}
+		for key, value := range usage {
+			requestInput.Usage[key] = value
+		}
 	}
 	if relayInfo.BillingImageCount != nil {
 		requestInput.ImageCount = relayInfo.BillingImageCount
@@ -245,6 +257,33 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 	noteQuotaClamp(relayInfo, tr.Clamp)
 
 	return true, tr.ActualQuotaAfterGroup, &tr
+}
+
+func cloneTieredRequestInput(source *billingexpr.RequestInput) billingexpr.RequestInput {
+	if source == nil {
+		return billingexpr.RequestInput{}
+	}
+	cloned := billingexpr.RequestInput{}
+	if len(source.Headers) > 0 {
+		cloned.Headers = make(map[string]string, len(source.Headers))
+		for key, value := range source.Headers {
+			cloned.Headers[key] = value
+		}
+	}
+	if len(source.Body) > 0 {
+		cloned.Body = append([]byte(nil), source.Body...)
+	}
+	if len(source.Usage) > 0 {
+		cloned.Usage = make(map[string]any, len(source.Usage))
+		for key, value := range source.Usage {
+			cloned.Usage[key] = value
+		}
+	}
+	if source.ImageCount != nil {
+		count := *source.ImageCount
+		cloned.ImageCount = &count
+	}
+	return cloned
 }
 
 // A failed evaluation retains the reservation and its estimated billing unit.

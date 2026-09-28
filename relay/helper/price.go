@@ -358,6 +358,15 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 	if err != nil {
 		return hosttypes.PriceData{}, err
 	}
+	// GPT-Live connection duration is a server-observed usage fact. Reserve the
+	// first minute when opening the socket; final settlement replaces this value
+	// with the exact fractional connection seconds measured by the server.
+	if info.RelayFormat == types.RelayFormatOpenAIRealtime && billingexpr.UsedUsageKeys(exprStr)["live_session_seconds"] {
+		if requestInput.Usage == nil {
+			requestInput.Usage = make(map[string]any)
+		}
+		requestInput.Usage["live_session_seconds"] = 60.0
+	}
 	if billingexpr.UsedVarsByHash(exprStr, exprHash)["image_count"] {
 		requestInput, err = ResolveImageBillingRequestInput(c, info, requestInput)
 		if err != nil {

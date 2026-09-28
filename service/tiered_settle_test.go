@@ -91,6 +91,39 @@ func TestTryTieredSettleUsesFrozenRequestInput(t *testing.T) {
 	}
 }
 
+func TestTryTieredSettleWithUsageMergesServerUsageWithoutMutatingFrozenInput(t *testing.T) {
+	exprStr := `tier("GPT-Live session connection duration", u("live_session_seconds") * (0.05 * 1000000 / 60))`
+	relayInfo := &relaycommon.RelayInfo{
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:              "tiered_expr",
+			ExprString:               exprStr,
+			ExprHash:                 billingexpr.ExprHashString(exprStr),
+			GroupRatio:               1.0,
+			EstimatedQuotaAfterGroup: 25000,
+			QuotaPerUnit:             testQuotaPerUnit,
+		},
+		BillingRequestInput: &billingexpr.RequestInput{
+			Usage: map[string]any{"live_session_seconds": 60.0},
+		},
+	}
+
+	ok, quota, result := TryTieredSettleWithUsage(
+		relayInfo,
+		billingexpr.TokenParams{},
+		map[string]any{"live_session_seconds": 30.5},
+	)
+	if !ok || result == nil {
+		t.Fatalf("expected successful tiered settlement, ok=%v result=%#v", ok, result)
+	}
+	// 30.5 / 60 * $0.05 * 500,000 quota/USD = 12,708.333..., rounded to 12,708.
+	if quota != 12708 {
+		t.Fatalf("quota = %d, want 12708", quota)
+	}
+	if got := relayInfo.BillingRequestInput.Usage["live_session_seconds"]; got != 60.0 {
+		t.Fatalf("frozen usage mutated to %v, want 60", got)
+	}
+}
+
 func TestTryTieredSettleFallsBackToFrozenPreConsumeOnExprError(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
 		FinalPreConsumedQuota: 321,

@@ -230,6 +230,12 @@ func cloneRequestInput(src billingexpr.RequestInput) billingexpr.RequestInput {
 	input := billingexpr.RequestInput{
 		Headers: cloneStringMap(src.Headers),
 	}
+	if len(src.Usage) > 0 {
+		input.Usage = make(map[string]any, len(src.Usage))
+		for key, value := range src.Usage {
+			input.Usage[key] = value
+		}
+	}
 	if src.ImageCount != nil {
 		count := *src.ImageCount
 		input.ImageCount = &count

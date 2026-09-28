@@ -85,6 +85,12 @@ func calculateAudioQuota(info QuotaInfo) (int, *common.QuotaClamp) {
 }
 
 func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage) error {
+	// Tiered Realtime requests are reserved when the billing session starts and
+	// settled once with cumulative token and connection-duration usage. Charging
+	// every response.done through the legacy ratio path would double charge them.
+	if relayInfo.TieredBillingSnapshot != nil {
+		return nil
+	}
 	if relayInfo.UsePrice {
 		return nil
 	}
@@ -153,20 +159,47 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	return nil
 }
 
+// BuildRealtimeTieredTokenParams normalizes the OpenAI Realtime usage shape into
+// the same modality-aware billing parameters used by ordinary OpenAI responses.
+// Keeping this adapter next to BuildTieredTokenParams prevents WebSocket billing
+// from silently falling back to aggregate input/output tokens.
+func BuildRealtimeTieredTokenParams(usage *dto.RealtimeUsage, usedVars map[string]bool) billingexpr.TokenParams {
+	if usage == nil {
+		return billingexpr.TokenParams{}
+	}
+	normalized := &dto.Usage{
+		PromptTokens:           usage.InputTokens,
+		CompletionTokens:       usage.OutputTokens,
+		PromptTokensDetails:    usage.InputTokenDetails,
+		CompletionTokenDetails: usage.OutputTokenDetails,
+	}
+	return BuildTieredTokenParams(normalized, false, usedVars)
+}
+
 func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelName string,
 	usage *dto.RealtimeUsage, extraContent string) {
 
+	liveSessionSeconds := time.Since(relayInfo.StartTime).Seconds()
+	if liveSessionSeconds < 0 {
+		liveSessionSeconds = 0
+	}
 	var tieredResult *billingexpr.TieredResult
-	tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, billingexpr.TokenParams{
-		P:   float64(usage.InputTokens),
-		C:   float64(usage.OutputTokens),
-		Len: float64(usage.InputTokens),
-	})
+	var tieredUsedVars map[string]bool
+	var liveSessionBilling bool
+	if snap := relayInfo.TieredBillingSnapshot; snap != nil {
+		tieredUsedVars = billingexpr.UsedVarsByHash(snap.ExprString, snap.ExprHash)
+		liveSessionBilling = billingexpr.UsedUsageKeys(snap.ExprString)["live_session_seconds"]
+	}
+	tieredOk, tieredQuota, tieredRes := TryTieredSettleWithUsage(
+		relayInfo,
+		BuildRealtimeTieredTokenParams(usage, tieredUsedVars),
+		map[string]any{"live_session_seconds": liveSessionSeconds},
+	)
 	if tieredOk {
 		tieredResult = tieredRes
 	}
 
-	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
+	useTimeSeconds := int64(liveSessionSeconds)
 	textInputTokens := usage.InputTokenDetails.TextTokens
 	textOutTokens := usage.OutputTokenDetails.TextTokens
 
@@ -214,7 +247,8 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 
 	// record all the consume log even if quota is 0
-	if totalTokens == 0 {
+	settledLiveSession := liveSessionBilling && tieredResult != nil && liveSessionSeconds > 0
+	if totalTokens == 0 && !settledLiveSession {
 		// in this case, must be some error happened
 		// we cannot just return, because we may have to return the pre-consumed quota
 		quota = 0
@@ -236,6 +270,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 	other := GenerateWssOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	other.SetPublic("live_session_seconds", liveSessionSeconds)
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}

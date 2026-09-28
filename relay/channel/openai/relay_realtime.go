@@ -129,9 +129,16 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 						usage.InputTokens += realtimeUsage.InputTokens
 						usage.OutputTokens += realtimeUsage.OutputTokens
 						usage.InputTokenDetails.AudioTokens += realtimeUsage.InputTokenDetails.AudioTokens
+						usage.InputTokenDetails.ImageTokens += realtimeUsage.InputTokenDetails.ImageTokens
+						usage.InputTokenDetails.VideoTokens += realtimeUsage.InputTokenDetails.VideoTokens
 						usage.InputTokenDetails.CachedTokens += realtimeUsage.InputTokenDetails.CachedTokens
+						usage.InputTokenDetails.CachedCreationTokens += realtimeUsage.InputTokenDetails.CachedCreationTokens
+						usage.InputTokenDetails.CacheWriteTokens += realtimeUsage.InputTokenDetails.CacheWriteTokens
 						usage.InputTokenDetails.TextTokens += realtimeUsage.InputTokenDetails.TextTokens
+						mergeRealtimeCachedDetails(&usage.InputTokenDetails, realtimeUsage.InputTokenDetails.CachedTokensDetails)
 						usage.OutputTokenDetails.AudioTokens += realtimeUsage.OutputTokenDetails.AudioTokens
+						usage.OutputTokenDetails.ImageTokens += realtimeUsage.OutputTokenDetails.ImageTokens
+						usage.OutputTokenDetails.VideoTokens += realtimeUsage.OutputTokenDetails.VideoTokens
 						usage.OutputTokenDetails.TextTokens += realtimeUsage.OutputTokenDetails.TextTokens
 						err := preConsumeUsage(c, info, usage, sumUsage)
 						if err != nil {
@@ -232,11 +239,48 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 	totalUsage.InputTokens += usage.InputTokens
 	totalUsage.OutputTokens += usage.OutputTokens
 	totalUsage.InputTokenDetails.CachedTokens += usage.InputTokenDetails.CachedTokens
+	totalUsage.InputTokenDetails.CachedCreationTokens += usage.InputTokenDetails.CachedCreationTokens
+	totalUsage.InputTokenDetails.CacheWriteTokens += usage.InputTokenDetails.CacheWriteTokens
 	totalUsage.InputTokenDetails.TextTokens += usage.InputTokenDetails.TextTokens
 	totalUsage.InputTokenDetails.AudioTokens += usage.InputTokenDetails.AudioTokens
+	totalUsage.InputTokenDetails.ImageTokens += usage.InputTokenDetails.ImageTokens
+	totalUsage.InputTokenDetails.VideoTokens += usage.InputTokenDetails.VideoTokens
+	mergeRealtimeCachedDetails(&totalUsage.InputTokenDetails, usage.InputTokenDetails.CachedTokensDetails)
 	totalUsage.OutputTokenDetails.TextTokens += usage.OutputTokenDetails.TextTokens
 	totalUsage.OutputTokenDetails.AudioTokens += usage.OutputTokenDetails.AudioTokens
+	totalUsage.OutputTokenDetails.ImageTokens += usage.OutputTokenDetails.ImageTokens
+	totalUsage.OutputTokenDetails.VideoTokens += usage.OutputTokenDetails.VideoTokens
 	// clear usage
 	err := service.PreWssConsumeQuota(ctx, info, usage)
 	return err
+}
+
+// mergeRealtimeCachedDetails preserves the optional modality breakdown while
+// aggregating multiple response.done usage reports in one WebSocket session.
+func mergeRealtimeCachedDetails(dst *dto.InputTokenDetails, src *dto.CachedTokenDetails) {
+	if dst == nil || src == nil {
+		return
+	}
+	if dst.CachedTokensDetails == nil {
+		dst.CachedTokensDetails = &dto.CachedTokenDetails{}
+	}
+	if src.TextTokens != nil {
+		value := valueOrZero(dst.CachedTokensDetails.TextTokens) + *src.TextTokens
+		dst.CachedTokensDetails.TextTokens = &value
+	}
+	if src.ImageTokens != nil {
+		value := valueOrZero(dst.CachedTokensDetails.ImageTokens) + *src.ImageTokens
+		dst.CachedTokensDetails.ImageTokens = &value
+	}
+	if src.AudioTokens != nil {
+		value := valueOrZero(dst.CachedTokensDetails.AudioTokens) + *src.AudioTokens
+		dst.CachedTokensDetails.AudioTokens = &value
+	}
+}
+
+func valueOrZero(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
