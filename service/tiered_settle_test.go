@@ -913,6 +913,55 @@ func TestBuildTieredTokenParams_GPT_AudioOutput(t *testing.T) {
 	}
 }
 
+func TestBuildTieredTokenParams_AudioInputAudioOutputTokenPricing(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     120,
+		CompletionTokens: 80,
+		PromptTokensDetails: dto.InputTokenDetails{
+			AudioTokens: 100,
+		},
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			AudioTokens: 60,
+			TextTokens:  20,
+		},
+	}
+	expr := `tier("audio input + audio output token pricing", ai * 3.5 + ao * 21)`
+	params := BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expr))
+
+	assert.Equal(t, float64(100), params.AI)
+	assert.Equal(t, float64(60), params.AO)
+	assert.Equal(t, float64(20), params.P, "audio input must not be billed again as generic input")
+	assert.Equal(t, float64(20), params.C, "audio output must not be billed again as generic output")
+
+	cost, _, err := billingexpr.RunExpr(expr, params)
+	require.NoError(t, err)
+	assert.Equal(t, float64(100)*3.5+float64(60)*21, cost)
+}
+
+func TestBuildTieredTokenParams_AudioInputTextOutputTokenPricing(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 50,
+		PromptTokensDetails: dto.InputTokenDetails{
+			AudioTokens: 100,
+		},
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			TextTokens:      40,
+			ReasoningTokens: 10,
+		},
+	}
+	expr := `tier("audio input + text output token pricing", ai * 3.5 + c * 21)`
+	params := BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expr))
+
+	assert.Equal(t, float64(100), params.AI)
+	assert.Zero(t, params.P, "audio input must not be billed again as generic input")
+	assert.Equal(t, float64(50), params.C, "completion total includes visible text and thinking tokens")
+
+	cost, _, err := billingexpr.RunExpr(expr, params)
+	require.NoError(t, err)
+	assert.Equal(t, float64(100)*3.5+float64(50)*21, cost)
+}
+
 func TestBuildTieredTokenParams_GPT_VideoAndAudioOnlyOutput(t *testing.T) {
 	usage := &dto.Usage{
 		PromptTokens:     1000,
