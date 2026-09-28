@@ -31,3 +31,12 @@ func TestValidateModelPricingAcceptsTTSCharacterUsageRules(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestValidateModelPricingAcceptsRealtimeSessionDuration(t *testing.T) {
+	expression := `tier("GPT-Live session connection duration", u("live_session_seconds") * (0.05 * 1000000 / 60))`
+	err := ValidateModelPricing("gpt-live-1", PricingValues{
+		"billing_setting.billing_mode": "tiered_expr",
+		"billing_setting.billing_expr": expression,
+	})
+	require.NoError(t, err)
+}

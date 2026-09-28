@@ -276,6 +276,9 @@ func SmokeTestRequestUsageExpr(exprStr string) error {
 		"tts_input_characters":  {Type: "number", Unit: "count"},
 		"tts_output_characters": {Type: "number", Unit: "count"},
 		"seconds":               {Type: "number", Unit: "second"},
+		// Realtime injects this server-observed value at reservation and final
+		// settlement; it is not a task-plugin usage field.
+		"live_session_seconds": {Type: "number", Unit: "second"},
 	}
 	return SmokeTestTaskExpr(exprStr, schema)
 }
@@ -291,6 +294,7 @@ func IsRequestUsageExpr(exprStr string) bool {
 		"input_images": true, "output_images": true, "count": true,
 		"characters": true, "tts_input_characters": true,
 		"tts_output_characters": true, "seconds": true,
+		"live_session_seconds": true,
 	}
 	for key := range keys {
 		if !allowed[key] {

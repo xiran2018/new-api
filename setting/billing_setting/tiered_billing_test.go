@@ -122,3 +122,10 @@ func TestSmokeTestRequestUsageExprAcceptsTTSCharacterPrices(t *testing.T) {
 	require.NoError(t, SmokeTestRequestUsageExpr(expression))
 	require.True(t, IsRequestUsageExpr(expression))
 }
+
+func TestSmokeTestRequestUsageExprAcceptsRealtimeSessionDuration(t *testing.T) {
+	expression := `tier("GPT-Live session", u("live_session_seconds") * (0.05 * 1000000 / 60))`
+	require.NoError(t, SmokeTestRequestUsageExpr(expression))
+	require.True(t, IsRequestUsageExpr(expression))
+	require.False(t, TaskExprCompatible(expression, map[string]jsplugin.UsageFieldSchema{}))
+}
