@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { AlertTriangle } from 'lucide-react'
-import { memo, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -280,6 +280,10 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
   props: TaskUsagePricingEditorProps
 ) {
   const { t, i18n } = useTranslation()
+  const initialExpression = combineBillingExpr(
+    props.billingExpr,
+    props.requestRuleExpr
+  )
   const [editorMode, setEditorMode] = useState<EditorMode>(() =>
     props.billingExpr &&
     !tryParseTaskMatrixConfig(props.billingExpr, props.usageSchema)
@@ -294,9 +298,8 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
     return (parsed ?? createDefaultTaskMatrixConfig(props.usageSchema)).rows
   })
   const [confirmVisualSwitch, setConfirmVisualSwitch] = useState(false)
-  const [rawExpr, setRawExpr] = useState(() =>
-    combineBillingExpr(props.billingExpr, props.requestRuleExpr)
-  )
+  const [rawExpr, setRawExpr] = useState(initialExpression)
+  const publishedExpressionRef = useRef(initialExpression)
   const [previewSample, setPreviewSample] = useState<
     Record<string, number | string>
   >(() => {
@@ -316,6 +319,33 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
   const numberFields = getTaskNumberFields(props.usageSchema)
   const combinations = getTaskEnumCombinations(props.usageSchema)
   const visualTiers = taskMatrixToTiers({ rows: matrixRows }, props.usageSchema)
+
+  useEffect(() => {
+    const nextExpression = combineBillingExpr(
+      props.billingExpr,
+      props.requestRuleExpr
+    )
+
+    // The parent may replace the expression after synchronizing vendor
+    // pricing. Keep the mounted editor in sync so a later switch to visual
+    // mode uses the newly synchronized expression rather than stale state.
+    if (nextExpression === publishedExpressionRef.current) return
+
+    publishedExpressionRef.current = nextExpression
+    setRawExpr(nextExpression)
+
+    const parsed = tryParseTaskMatrixConfig(
+      props.billingExpr,
+      props.usageSchema
+    )
+    if (parsed) {
+      setMatrixRows(parsed.rows)
+      return
+    }
+
+    setMatrixRows(createDefaultTaskMatrixConfig(props.usageSchema).rows)
+    setEditorMode((current) => (current === 'visual' ? 'raw' : current))
+  }, [props.billingExpr, props.requestRuleExpr, props.usageSchema])
 
   let previewConfig: TaskVisualConfig | null = null
   let previewRequestRuleExpr = props.requestRuleExpr
@@ -345,14 +375,17 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
 
   const publishRows = (nextRows: TaskMatrixRow[]) => {
     setMatrixRows(nextRows)
-    props.onBillingExprChange(
-      generateTaskExprFromConfig(
-        {
-          tiers: taskMatrixToTiers({ rows: nextRows }, props.usageSchema),
-        },
-        props.usageSchema
-      )
+    const nextBillingExpr = generateTaskExprFromConfig(
+      {
+        tiers: taskMatrixToTiers({ rows: nextRows }, props.usageSchema),
+      },
+      props.usageSchema
     )
+    publishedExpressionRef.current = combineBillingExpr(
+      nextBillingExpr,
+      props.requestRuleExpr
+    )
+    props.onBillingExprChange(nextBillingExpr)
   }
 
   const handleRowChange = (index: number, next: TaskMatrixRow) => {
@@ -374,6 +407,7 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
 
   const handleRawChange = (value: string) => {
     setRawExpr(value)
+    publishedExpressionRef.current = value
     const split = splitBillingExprAndRequestRules(value)
     props.onBillingExprChange(split.billingExpr)
     props.onRequestRuleExprChange(split.requestRuleExpr)
@@ -391,7 +425,12 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
       setConfirmVisualSwitch(true)
       return
     }
-    setRawExpr(combineBillingExpr(props.billingExpr, props.requestRuleExpr))
+    const nextExpression = combineBillingExpr(
+      props.billingExpr,
+      props.requestRuleExpr
+    )
+    publishedExpressionRef.current = nextExpression
+    setRawExpr(nextExpression)
     setEditorMode('raw')
   }
 
@@ -400,13 +439,17 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
       rawMatrix ?? createDefaultTaskMatrixConfig(props.usageSchema)
     ).rows
     setMatrixRows(nextRows)
-    props.onBillingExprChange(
-      generateTaskExprFromConfig(
-        { tiers: taskMatrixToTiers({ rows: nextRows }, props.usageSchema) },
-        props.usageSchema
-      )
+    const nextBillingExpr = generateTaskExprFromConfig(
+      { tiers: taskMatrixToTiers({ rows: nextRows }, props.usageSchema) },
+      props.usageSchema
     )
-    props.onRequestRuleExprChange(rawMatrix ? rawSplit.requestRuleExpr : '')
+    const nextRequestRuleExpr = rawMatrix ? rawSplit.requestRuleExpr : ''
+    publishedExpressionRef.current = combineBillingExpr(
+      nextBillingExpr,
+      nextRequestRuleExpr
+    )
+    props.onBillingExprChange(nextBillingExpr)
+    props.onRequestRuleExprChange(nextRequestRuleExpr)
     setConfirmVisualSwitch(false)
     setEditorMode('visual')
   }

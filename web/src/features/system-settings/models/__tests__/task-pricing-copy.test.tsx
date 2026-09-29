@@ -164,6 +164,68 @@ function TaskPricingDraft(props: {
   )
 }
 
+function ExternalSyncDraft() {
+  const [billingExpr, setBillingExpr] = useState(
+    'tier("old", u("seconds") * u("seconds"))'
+  )
+  const [requestRuleExpr, setRequestRuleExpr] = useState('')
+  return (
+    <>
+      <button
+        type='button'
+        onClick={() =>
+          setBillingExpr(
+            'u("resolution") == "720P" ? tier("720P", u("seconds") * 0.4) : tier("fallback", u("seconds") * 0.2)'
+          )
+        }
+      >
+        Sync vendor price
+      </button>
+      <TaskUsagePricingEditor
+        billingExpr={billingExpr}
+        requestRuleExpr={requestRuleExpr}
+        usageSchema={{
+          seconds: { type: 'number', unit: 'second' },
+          resolution: { enum: ['720P', '1080P'] },
+        }}
+        onBillingExprChange={setBillingExpr}
+        onRequestRuleExprChange={setRequestRuleExpr}
+      />
+    </>
+  )
+}
+
+it('synchronizes externally replaced vendor expressions before switching to visual mode', async () => {
+  const user = userEvent.setup()
+  render(<ExternalSyncDraft />)
+
+  await user.click(screen.getByRole('button', { name: 'Sync vendor price' }))
+  expect(
+    screen.getByRole('textbox', { name: 'Billing expression' })
+  ).toHaveValue(
+    'u("resolution") == "720P" ? tier("720P", u("seconds") * 0.4) : tier("fallback", u("seconds") * 0.2)'
+  )
+  await user.click(screen.getByRole('combobox', { name: 'Editor mode' }))
+  await user.click(screen.getByRole('option', { name: 'Visual editor' }))
+
+  const dialog = screen.getByRole('alertdialog')
+  expect(dialog).toHaveTextContent(
+    'replaces its original formatting and tier names'
+  )
+  expect(dialog).not.toHaveTextContent('resets all prices to zero')
+
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Switch to visual editor' })
+  )
+  expect(
+    Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        '[data-matrix-col=\"seconds\"]'
+      )
+    ).map((input) => input.value)
+  ).toEqual(['0.400', '0.200'])
+})
+
 it('lets users cancel or discard an unsupported expression and its request rules', async () => {
   const user = userEvent.setup()
   const onChange = vi.fn()
