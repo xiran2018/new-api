@@ -70,6 +70,7 @@ test('passes all Qwen3 Omni specialized price fields to the vendor comparison ad
 test.each([
   ['gemini-omni-shared-input-text-video-output-simple', ['p', 'c', 'vid_o']],
   ['gemini-image-shared-input-text-image-output-simple', ['p', 'c', 'img_o']],
+  ['gemini-image-text-image-video-input-output-simple', ['p', 'c', 'img_o']],
   ['gemini-native-audio-text-media-input-output-simple', ['p', 'ai', 'c', 'ao']],
   ['gemini-robotics-unified-cache-pricing-simple', ['p', 'cr', 'c']],
   ['gemini-tts-text-cache-audio-output-simple', ['p', 'cr', 'ao']],
@@ -107,6 +108,12 @@ test('edits the Gemini Omni shared input once and updates all input modalities',
 })
 
 test.each([
+  [
+    'gemini-image-text-image-video-input-output-simple',
+    'Text/image/video input',
+    '0.75',
+    ['p * 0.75', 'img * 0.75', 'vid * 0.75'],
+  ],
   [
     'gemini-native-audio-text-media-input-output-simple',
     'Audio/video input',
@@ -227,6 +234,11 @@ test.each([
     'gemini-image-shared-input-text-image-output-simple',
     { p: 100, img: 100, c: 100, img_o: 100 },
     6400,
+  ],
+  [
+    'gemini-image-text-image-video-input-output-simple',
+    { p: 100, img: 100, vid: 100, c: 100, img_o: 100 },
+    3225,
   ],
   [
     'gemini-native-audio-text-media-input-output-simple',
