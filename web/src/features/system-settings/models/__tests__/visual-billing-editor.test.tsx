@@ -67,6 +67,85 @@ test('passes all Qwen3 Omni specialized price fields to the vendor comparison ad
   expect(addons.every((item) => item.split('|')[2])).toBe(true)
 })
 
+test.each([
+  ['gemini-omni-shared-input-text-video-output-simple', ['p', 'c', 'vid_o']],
+  ['gemini-image-shared-input-text-image-output-simple', ['p', 'c', 'img_o']],
+  ['gemini-native-audio-text-media-input-output-simple', ['p', 'ai', 'c', 'ao']],
+  ['gemini-robotics-unified-cache-pricing-simple', ['p', 'cr', 'c']],
+  ['gemini-tts-text-cache-audio-output-simple', ['p', 'cr', 'ao']],
+  ['gemini-multimodal-embedding-input-simple', ['p', 'img', 'ai', 'vid']],
+])('passes every %s field to the vendor comparison addon', (presetKey, expectedKeys) => {
+  const addons = renderPresetWithPriceAddons(presetKey)
+
+  expect(addons.map((item) => item.split('|')[0])).toEqual(expectedKeys)
+  expect(addons.every((item) => item.split('|')[2])).toBe(true)
+})
+
+test('edits the Gemini Omni shared input once and updates all input modalities', () => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === 'gemini-omni-shared-input-text-video-output-simple')
+  assert(preset)
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={preset.expr}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+
+  fireEvent.change(screen.getByRole('textbox', { name: 'Text/image/video/audio input' }), {
+    target: { value: '2.25' },
+  })
+  const updated = onBillingExprChange.mock.lastCall?.[0]
+  assert(updated)
+  expect(updated).toContain('p * 2.25')
+  expect(updated).toContain('img * 2.25')
+  expect(updated).toContain('vid * 2.25')
+  expect(updated).toContain('ai * 2.25')
+})
+
+test.each([
+  [
+    'gemini-native-audio-text-media-input-output-simple',
+    'Audio/video input',
+    '4.5',
+    ['ai * 4.5', 'vid * 4.5'],
+  ],
+  [
+    'gemini-robotics-unified-cache-pricing-simple',
+    'Text/image/video/audio input',
+    '3.25',
+    ['p * 3.25', 'img * 3.25', 'vid * 3.25', 'ai * 3.25'],
+  ],
+])('updates every shared modality in %s from one administrator field', (
+  presetKey,
+  fieldLabel,
+  value,
+  fragments,
+) => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === presetKey)
+  assert(preset)
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={preset.expr}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+
+  fireEvent.change(screen.getByRole('textbox', { name: fieldLabel }), {
+    target: { value },
+  })
+  const updated = onBillingExprChange.mock.lastCall?.[0]
+  assert(updated)
+  for (const fragment of fragments) expect(updated).toContain(fragment)
+})
+
 test('passes shared input and thinking outputs to the vendor comparison addon', () => {
   const addons = renderPresetWithPriceAddons('shared-input-thinking-output')
 
@@ -136,6 +215,48 @@ test('bills every shared-input Omni output branch with the configured prices', (
   expect(evaluateBillingExpression(preset.expr, {
     tokens: { ...tokens, p: 100, c: 100, ao: 100 },
   })).toMatchObject({ status: 'success', cost: 6440 })
+})
+
+test.each([
+  [
+    'gemini-omni-shared-input-text-video-output-simple',
+    { p: 100, img: 100, vid: 100, ai: 100, c: 100, vid_o: 100 },
+    3250,
+  ],
+  [
+    'gemini-image-shared-input-text-image-output-simple',
+    { p: 100, img: 100, c: 100, img_o: 100 },
+    6400,
+  ],
+  [
+    'gemini-native-audio-text-media-input-output-simple',
+    { p: 100, ai: 100, vid: 100, c: 100, ao: 100 },
+    2050,
+  ],
+  [
+    'gemini-robotics-unified-cache-pricing-simple',
+    { p: 100, img: 100, vid: 100, ai: 100, cr: 100, c: 100 },
+    1820,
+  ],
+  [
+    'gemini-tts-text-cache-audio-output-simple',
+    { p: 100, cr: 100, ao: 100 },
+    2125,
+  ],
+  [
+    'gemini-multimodal-embedding-input-simple',
+    { p: 100, img: 100, ai: 100, vid: 100 },
+    1915,
+  ],
+])('bills every configured modality in %s', (presetKey, tokens, expectedCost) => {
+  const preset = PLATFORM_BILLING_PRESET_GROUPS.flatMap((group) => group.presets)
+    .find((item) => item.key === presetKey)
+  assert(preset)
+
+  expect(evaluateBillingExpression(preset.expr, { tokens })).toMatchObject({
+    status: 'success',
+    cost: expectedCost,
+  })
 })
 
 test('opens two-range thinking prices visually', async () => {
