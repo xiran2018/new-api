@@ -41,6 +41,20 @@ func TestFixedPriceBranches(t *testing.T) {
 	}
 }
 
+func TestUnmatchedPricingTierRejectsInsteadOfChargingZero(t *testing.T) {
+	const expression = `u("resolution") == "480p" ? tier("480p", p * 2) : tier("__pricing_unmatched__", 0)`
+
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		expression,
+		billingexpr.TokenParams{P: 500000},
+		billingexpr.RequestInput{Usage: map[string]any{"resolution": "1080p"}},
+	)
+
+	assert.Zero(t, cost)
+	assert.Equal(t, billingexpr.UnmatchedTierName, trace.MatchedTier)
+	assert.ErrorIs(t, err, billingexpr.ErrUnmatchedPricingTier)
+}
+
 func TestFixedPriceRejectsInvalidLeavesIncludingUnselectedBranches(t *testing.T) {
 	for _, expression := range []string{
 		`true ? tier("ok", p) : tier("bad", fixed(-0.01))`,

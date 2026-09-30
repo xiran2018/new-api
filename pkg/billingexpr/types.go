@@ -2,6 +2,7 @@ package billingexpr
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 
 	"github.com/QuantumNous/new-api/common"
@@ -50,6 +51,15 @@ const (
 	BillingUnitToken   BillingUnit = "token"
 	BillingUnitRequest BillingUnit = "request"
 )
+
+// UnmatchedTierName is emitted by structured pricing rules that explicitly
+// reject requests which do not match one of their configured tiers. It is a
+// sentinel branch, never a billable fallback price.
+const UnmatchedTierName = "__pricing_unmatched__"
+
+// ErrUnmatchedPricingTier prevents an explicit no-fallback pricing matrix from
+// silently charging zero when no resolution/reference-video combination matches.
+var ErrUnmatchedPricingTier = errors.New("no pricing tier matched the request")
 
 // TraceResult holds side-channel info captured while an expression runs.
 type TraceResult struct {

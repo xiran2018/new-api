@@ -158,6 +158,9 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 	if !ok {
 		return 0, trace, fmt.Errorf("expr result is %T, want float64", out)
 	}
+	if trace.MatchedTier == UnmatchedTierName {
+		return 0, trace, ErrUnmatchedPricingTier
+	}
 	return f, trace, nil
 }
 

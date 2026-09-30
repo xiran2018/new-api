@@ -162,6 +162,7 @@ export function ModelPricingPanel(props: {
       <ModelPricingEditorPanel
         embedded
         ref={editor}
+        loadPublicPricingCatalog={false}
         editData={editData}
         usageSchema={entry.usage_schema}
         pluginVariants={entry.plugin_variants}
