@@ -389,6 +389,59 @@ func keysOf(schema map[string]jsplugin.UsageFieldSchema) []string {
 	return keys
 }
 
+func TestDoubaoThreeDOutputTokenBilling(t *testing.T) {
+	_, plugin := newDoubaoPlugin(t)
+	models := []string{
+		"doubao-seed3d-2.0",
+		"doubao-seed3d-2-0-260328",
+		"Hyper3d-Gen2",
+		"hyper3d-gen-2-0-260112",
+	}
+	for _, model := range models {
+		t.Run(model, func(t *testing.T) {
+			schema, examples := plugin.Meta.UsageForModel(model)
+			assert.ElementsMatch(t, []string{"tokens"}, keysOf(schema))
+			require.NotEmpty(t, examples)
+
+			ctx := map[string]any{
+				"model":         model,
+				"upstreamModel": model,
+				"baseUrl":       doubaoBaseURL,
+				"apiKey":        "k",
+				"requestBody": map[string]any{
+					"model":  model,
+					"prompt": "generate a 3D fox",
+					"metadata": map[string]any{
+						"model": model,
+						"content": []any{
+							map[string]any{"type": "text", "text": "generate a 3D fox"},
+						},
+					},
+				},
+			}
+			descriptor, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", ctx)
+			require.NoError(t, err)
+			built := alibabaObject(t, descriptor)
+			assert.Equal(t, "3d_generation", built["action"])
+			assert.Equal(t, model, built["rewriteModel"])
+
+			usage, err := plugin.Engine.Call(t.Context(), "extractUsage", ctx)
+			require.NoError(t, err)
+			assert.Equal(t, map[string]any{"tokens": float64(30000)}, alibabaObject(t, usage))
+
+			completed, err := plugin.Engine.Call(t.Context(), "extractUsageOnComplete", ctx, map[string]any{"status": "SUCCESS"}, map[string]any{
+				"status": "succeeded",
+				"usage":  map[string]any{"completion_tokens": 32123},
+				"content": map[string]any{
+					"resolution": "1080p",
+				},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, map[string]any{"tokens": float64(32123)}, alibabaObject(t, completed))
+		})
+	}
+}
+
 // Rejections mirror the Ark API reference; the model-capability cases were
 // confirmed against live 400 responses (2026-09).
 func TestDoubaoImageValidation(t *testing.T) {

@@ -13,6 +13,28 @@ const VIDEO_MODELS = {
   "doubao-seedance-2-0-mini-260615": { resolutions: ["480p", "720p"], videoInput: true },
   "doubao-seedance-2-5-260628": { resolutions: ["480p", "720p", "1080p"], videoInput: true },
 };
+// Ark 3D generation tasks are billed from the completion-token count returned
+// by the task result. Keep common display aliases as well as dated model IDs so
+// channel model mappings still select the correct usage schema.
+const THREE_D_MODELS = {
+  "doubao-seed3d-2.0": {},
+  "doubao-seed3d-2-0-260215": {},
+  "doubao-seed3d-2-0-260328": {},
+  "Hyper3d-Gen2": {},
+  "hyper3d-gen-2-0-260112": {},
+  "hyper3d-gen-2-0-260126": {},
+};
+const THREE_D_USAGE_SCHEMA = {
+  tokens: {
+    type: "number",
+    unit: "token",
+    description: {
+      en: "3D output completion tokens",
+      zh: "3D 输出 completion tokens",
+    },
+  },
+};
+const THREE_D_ESTIMATED_TOKENS = 30000;
 // Every Ark resolution tier; an endpoint ID reached through channel mapping
 // without a declared profile keeps them all.
 const SEEDANCE_RESOLUTIONS = ["480p", "720p", "1080p", "4k"];
@@ -267,13 +289,13 @@ export const meta = {
   name: "Doubao",
   icon: "Doubao.Color",
   description: {
-    en: "Volcengine Doubao Seedance video generation and Seedream image generation",
-    zh: "火山引擎豆包 Seedance 视频生成与 Seedream 图片生成",
+    en: "Volcengine Doubao Seedance video, Seedream image and Seed3D/Hyper3D generation",
+    zh: "火山引擎豆包 Seedance 视频、Seedream 图片与 Seed3D/Hyper3D 三维生成",
   },
   version: "1.1.0",
   author: { name: "QuantumNous" },
   channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
-  models: Object.keys(VIDEO_MODELS).concat(Object.keys(IMAGE_MODELS)),
+  models: Object.keys(VIDEO_MODELS).concat(Object.keys(IMAGE_MODELS)).concat(Object.keys(THREE_D_MODELS)),
   fetchMode: "per_task",
   upstreams: ["vendor", "new_api"],
   usageSchema: seedanceUsageSchema(DEFAULT_VIDEO_PROFILE),
@@ -287,6 +309,13 @@ export const meta = {
         { label: "1K · 1 张 · 2 张参考图", facts: { image_count: 1, images_up_to_1_5k: 1, images_above_1_5k: 0, input_images: 2, layer_decomposition: false } },
         { label: "2K · 4 张组图", facts: { image_count: 4, images_up_to_1_5k: 0, images_above_1_5k: 4, input_images: 0, layer_decomposition: false } },
         { label: "图层拆分 · 2K 底图 + 4 层 1.5K", facts: { image_count: 5, images_up_to_1_5k: 4, images_above_1_5k: 1, input_images: 1, layer_decomposition: true } },
+      ],
+    },
+    {
+      models: Object.keys(THREE_D_MODELS),
+      schema: THREE_D_USAGE_SCHEMA,
+      examples: [
+        { label: "一次成功的 3D 输出", facts: { tokens: THREE_D_ESTIMATED_TOKENS } },
       ],
     },
   ]),
@@ -305,6 +334,13 @@ export const meta = {
 
 function trimmed(value) {
   return String(value || "").trim();
+}
+
+function threeDTask(ctx) {
+  const req = (ctx && ctx.requestBody) || {};
+  return [ctx && ctx.upstreamModel, ctx && ctx.model, req.model]
+    .map(trimmed)
+    .some((model) => Object.prototype.hasOwnProperty.call(THREE_D_MODELS, model));
 }
 
 // Another New API gateway serves the Ark wire format only on this plugin's
@@ -776,7 +812,7 @@ export function buildSubmitRequest(ctx) {
   const req = ctx.requestBody;
   const metadata = req.metadata || {};
   // Reject output tiers the model does not offer before any quota is reserved.
-  videoResolution(ctx);
+  if (!threeDTask(ctx)) videoResolution(ctx);
   const body = Object.assign({ model: req.model || "", content: [] }, metadata);
   const imageContent = [];
   const images = Array.isArray(req.images) ? req.images : [];
@@ -794,7 +830,7 @@ export function buildSubmitRequest(ctx) {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
     body: body,
-    action: hasReference ? "image_to_video" : "text_to_video",
+    action: threeDTask(ctx) ? "3d_generation" : hasReference ? "image_to_video" : "text_to_video",
     rewriteModel: body.model,
   };
 }
@@ -824,6 +860,10 @@ export function extractUsage(ctx) {
     // alone; task expressions read the tiered facts and the reference count.
     if (ctx.usagePurpose === "billing_ratios") return { image_count: facts.images_up_to_1_5k + facts.images_above_1_5k };
     return facts;
+  }
+  if (threeDTask(ctx)) {
+    if (ctx.usagePurpose === "billing_ratios") return null;
+    return { tokens: THREE_D_ESTIMATED_TOKENS };
   }
   const req = ctx.requestBody || {};
   const metadata = req.metadata || {};
@@ -933,6 +973,7 @@ export function extractUsageOnComplete(task, taskResult, body) {
   let tokens = Number(usage.completion_tokens);
   if (!Number.isFinite(tokens) || tokens <= 0) tokens = Number(usage.total_tokens);
   if (Number.isFinite(tokens) && tokens > 0) facts.tokens = tokens;
+  if (threeDTask(task)) return facts;
   const content = body.content || {};
   const resolution = trimmed(content.resolution || body.resolution).toLowerCase();
   if (videoProfile(task).resolutions.includes(resolution)) facts.resolution = resolution;
