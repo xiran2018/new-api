@@ -84,6 +84,20 @@ const IMAGE_MODELS = {
     tools: false,
     fastPromptMode: true,
   },
+  // Alternate Seedream 4.0 deployment identifier. It has the same image
+  // request and billing capabilities as the 250828 model snapshot.
+  "doubao-seedream-4-0-20260415": {
+    presets: ["1K", "2K", "4K"],
+    minPixels: 921600,
+    maxPixels: 16777216,
+    maxReferenceImages: 14,
+    sequential: true,
+    layers: false,
+    outputFormat: false,
+    background: false,
+    tools: false,
+    fastPromptMode: true,
+  },
 };
 const IMAGE_RESOLUTIONS = ["1K", "1.5K", "2K", "3K", "4K"];
 // Square pixel area of each preset, used only for the submit-time tier estimate.
@@ -134,6 +148,16 @@ const IMAGE_UNIT_LABEL = { en: "image", zh: "张", "zh-TW": "張", fr: "image", 
 // layers individually). Estimated at submit from the requested size and count;
 // settled from data[].size per successful image.
 const IMAGE_USAGE_SCHEMA = {
+  // Total successful output images. This generic fact allows the administrator
+  // to choose a simple per-output-image price instead of the Seedream-specific
+  // pixel-tier matrix; it is estimated on submit and replaced by the delivered
+  // payload count on completion.
+  image_count: {
+    type: "number",
+    unit: "count",
+    unitLabel: IMAGE_UNIT_LABEL,
+    description: { en: "Generated output image count", zh: "生成的输出图片张数" },
+  },
   // Successful output images at or below IMAGE_TIER_MAX_PIXELS.
   images_up_to_1_5k: {
     type: "number",
@@ -259,10 +283,10 @@ export const meta = {
       models: Object.keys(IMAGE_MODELS),
       schema: IMAGE_USAGE_SCHEMA,
       examples: [
-        { label: "2K · 1 张", facts: { images_up_to_1_5k: 0, images_above_1_5k: 1, input_images: 0, layer_decomposition: false } },
-        { label: "1K · 1 张 · 2 张参考图", facts: { images_up_to_1_5k: 1, images_above_1_5k: 0, input_images: 2, layer_decomposition: false } },
-        { label: "2K · 4 张组图", facts: { images_up_to_1_5k: 0, images_above_1_5k: 4, input_images: 0, layer_decomposition: false } },
-        { label: "图层拆分 · 2K 底图 + 4 层 1.5K", facts: { images_up_to_1_5k: 4, images_above_1_5k: 1, input_images: 1, layer_decomposition: true } },
+        { label: "2K · 1 张", facts: { image_count: 1, images_up_to_1_5k: 0, images_above_1_5k: 1, input_images: 0, layer_decomposition: false } },
+        { label: "1K · 1 张 · 2 张参考图", facts: { image_count: 1, images_up_to_1_5k: 1, images_above_1_5k: 0, input_images: 2, layer_decomposition: false } },
+        { label: "2K · 4 张组图", facts: { image_count: 4, images_up_to_1_5k: 0, images_above_1_5k: 4, input_images: 0, layer_decomposition: false } },
+        { label: "图层拆分 · 2K 底图 + 4 层 1.5K", facts: { image_count: 5, images_up_to_1_5k: 4, images_above_1_5k: 1, input_images: 1, layer_decomposition: true } },
       ],
     },
   ]),
@@ -549,6 +573,7 @@ function convertImage(ctx) {
     body: body,
     action: images.length ? "image_to_image" : "text_to_image",
     facts: {
+      image_count: imageCount,
       images_up_to_1_5k: higherTier ? 0 : imageCount,
       images_above_1_5k: higherTier ? imageCount : 0,
       input_images: images.length,
@@ -591,7 +616,7 @@ function imagePayloads(body) {
 function imageUsage(body) {
   const usage = body.usage || {};
   const payloads = imagePayloads(body);
-  const facts = {};
+  const facts = { image_count: payloads.length };
   let lower = 0,
     higher = 0,
     sized = true;
