@@ -242,6 +242,45 @@ it('retains the model identity and heading when the editor is used standalone', 
   expect(screen.getByRole('textbox', { name: 'Model name' })).toBeDisabled()
 })
 
+it('does not load the client pricing catalogue when administrator metadata is supplied', async () => {
+  const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {
+    if (url === '/api/pricing') {
+      throw Object.assign(new Error('pricing is disabled'), {
+        response: { status: 403 },
+      })
+    }
+    return { data: { success: true, data: {} } }
+  })
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  clients.push(client)
+
+  render(
+    <QueryClientProvider client={client}>
+      <ModelPricingEditorPanel
+        loadPublicPricingCatalog={false}
+        usageSchema={{}}
+        editData={{
+          name: 'example-model',
+          billingMode: 'tiered_expr',
+          billingExpr: 'tier("base", p * 0 + c * 0)',
+        }}
+        onSave={() => {}}
+      />
+    </QueryClientProvider>
+  )
+
+  await waitFor(() =>
+    expect(
+      screen.getByRole('region', { name: 'Edit model pricing' })
+    ).toBeVisible()
+  )
+  expect(
+    get.mock.calls.some(([url]) => url === '/api/pricing')
+  ).toBe(false)
+})
+
 it('updates the preview for explicit zero and disabled prices and explains dependent audio controls', async () => {
   renderEditor(true)
   const user = userEvent.setup()

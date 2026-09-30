@@ -138,6 +138,7 @@ type ModelPricingEditorPanelProps = Omit<
 > & {
   className?: string
   embedded?: boolean
+  loadPublicPricingCatalog?: boolean
   showPricingCurrencySelector?: boolean
   scrollHeader?: ReactNode
   additionalPricingTab?: { label: ReactNode; content: ReactNode }
@@ -209,6 +210,7 @@ export const ModelPricingEditorPanel = forwardRef<
     pluginVariants,
     onDirtyChange,
     embedded = false,
+    loadPublicPricingCatalog = true,
     showPricingCurrencySelector = true,
     scrollHeader,
     additionalPricingTab,
@@ -275,7 +277,10 @@ export const ModelPricingEditorPanel = forwardRef<
   const initialBillingExpr =
     editData?.billingExpr ||
     (initialPricingMode === 'tiered_expr' ? DEFAULT_TOKEN_BILLING_EXPR : '')
-  const { models: pricingModels } = usePricingData()
+  // The public pricing catalogue is protected by the client-facing pricing
+  // navigation switch. Administrative integrations already receive the usage
+  // schema from /api/option/model_pricing and must not depend on that switch.
+  const { models: pricingModels } = usePricingData(loadPublicPricingCatalog)
 
   const form = useForm<ModelPricingFormValues>({
     resolver: zodResolver(createModelPricingSchema(t)),
