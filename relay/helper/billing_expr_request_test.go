@@ -50,6 +50,21 @@ func TestBuildImageBillingExprRequestInputDefaults(t *testing.T) {
 	require.Equal(t, float64(1), input.Usage["output_images"])
 }
 
+func TestBuildImageBillingExprRequestInputPreservesOnePointFiveKTier(t *testing.T) {
+	request := &dto.ImageRequest{
+		Model:   "grok-imagine-image-2.0",
+		Quality: "medium",
+		Extra: map[string]json.RawMessage{
+			"resolution": json.RawMessage(`"1.5k"`),
+		},
+	}
+	input, err := BuildImageBillingExprRequestInput(request, nil)
+	require.NoError(t, err)
+	require.Equal(t, "1.5K", input.Usage["resolution"])
+	require.Equal(t, "1.5K", input.Usage["resolution_tier"])
+	require.Equal(t, "medium", input.Usage["quality"])
+}
+
 func TestBuildAudioBillingExprRequestInputCountsUnicodeCharacters(t *testing.T) {
 	input, err := BuildAudioBillingExprRequestInput(&dto.AudioRequest{
 		Model: "qwen3-tts-flash",

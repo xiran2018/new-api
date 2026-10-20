@@ -98,7 +98,9 @@ func addImageUsageScalars(usage map[string]any, prefix string, values map[string
 		}
 		switch typed := value.(type) {
 		case string, bool, float64:
-			usage[name] = typed
+			if _, exists := usage[name]; !exists {
+				usage[name] = typed
+			}
 			if prefix == "parameters" {
 				if _, exists := usage[key]; !exists {
 					usage[key] = typed
@@ -134,6 +136,9 @@ func normalizeImageResolution(size string) string {
 func imageResolutionTier(normalized string) string {
 	if strings.Contains(normalized, "4K") {
 		return "4K"
+	}
+	if strings.Contains(normalized, "1.5K") {
+		return "1.5K"
 	}
 	if strings.Contains(normalized, "2K") {
 		return "2K"

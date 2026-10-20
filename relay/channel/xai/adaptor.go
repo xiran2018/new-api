@@ -43,7 +43,12 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		Model:          request.Model,
 		Prompt:         request.Prompt,
 		N:              int(lo.FromPtrOr(request.N, uint(1))),
+		Quality:        request.Quality,
 		ResponseFormat: request.ResponseFormat,
+		Image:          request.Image,
+		Images:         request.Images,
+		Resolution:     request.Extra["resolution"],
+		AspectRatio:    request.Extra["aspect_ratio"],
 	}
 	return xaiRequest, nil
 }
