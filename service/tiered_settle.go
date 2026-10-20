@@ -75,7 +75,7 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 					ai -= aiCR
 				}
 			} else {
-				common.SysError("invalid modality cache token breakdown; using aggregate cache billing")
+				common.SysError(common.LogText("invalid modality cache token breakdown; using aggregate cache billing"))
 			}
 		}
 	}
