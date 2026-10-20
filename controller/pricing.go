@@ -36,15 +36,19 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 }
 
 func GetPricing(c *gin.Context) {
-	pricing := model.GetPricing()
+	pricing, err := model.GetModelSquarePricing()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	userId, exists := c.Get("id")
 	usableGroup := map[string]string{}
 	groupRatio := map[string]float64{}
 	maps.Copy(groupRatio, ratio_setting.GetGroupRatioCopy())
 	var group string
 	if exists {
-		user, err := model.GetUserCache(userId.(int))
-		if err == nil {
+		user, userErr := model.GetUserCache(userId.(int))
+		if userErr == nil {
 			group = user.Group
 			for g := range groupRatio {
 				ratio, ok := ratio_setting.GetGroupGroupRatio(group, g)

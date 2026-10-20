@@ -100,6 +100,23 @@ func resolveModelMetadata(records []Model, names []string) map[string]*Model {
 	return resolved
 }
 
+// GetModelSquareVisibility resolves the explicit model-square policy for each
+// concrete model name. Channel discovery alone never opts a model into public
+// catalogue pages.
+func GetModelSquareVisibility(names []string) (map[string]bool, error) {
+	var metadata []Model
+	if err := DB.Find(&metadata).Error; err != nil {
+		return nil, err
+	}
+	resolved := resolveModelMetadata(metadata, names)
+	visible := make(map[string]bool, len(names))
+	for _, name := range names {
+		policy := resolved[name]
+		visible[name] = policy != nil && policy.Status == 1
+	}
+	return visible, nil
+}
+
 // FillModelSquareStates applies the same metadata policy as the public catalog
 // to live routes, then aggregates concrete models for metadata rule rows.
 func FillModelSquareStates(rows []*Model, configured map[string][]int, connections []ModelConnection) error {
@@ -127,11 +144,12 @@ func FillModelSquareStates(rows []*Model, configured map[string][]int, connectio
 	}
 	states := make(map[string]ModelSquareState, len(names))
 	for _, name := range names {
-		state := ModelSquareUnavailable
-		if policy := resolved[name]; policy != nil && policy.Status != 1 {
-			state = ModelSquareHidden
-		} else if available[name] {
-			state = ModelSquareVisible
+		state := ModelSquareHidden
+		if policy := resolved[name]; policy != nil && policy.Status == 1 {
+			state = ModelSquareUnavailable
+			if available[name] {
+				state = ModelSquareVisible
+			}
 		}
 		states[name] = state
 	}

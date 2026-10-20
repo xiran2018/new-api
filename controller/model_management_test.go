@@ -537,7 +537,9 @@ export function parseTaskResult() { return {}; }
 				}
 				catalog := make(map[string]bool)
 				model.RefreshPricing()
-				for _, row := range model.GetPricing() {
+				publicPricing, err := model.GetModelSquarePricing()
+				require.NoError(t, err)
+				for _, row := range publicPricing {
 					catalog[row.ModelName] = true
 				}
 				expected := map[string]model.ModelSquareState{
@@ -545,8 +547,8 @@ export function parseTaskResult() { return {}; }
 					"square-hidden":          model.ModelSquareHidden,
 					"square-catalog":         model.ModelSquareUnavailable,
 					"square-hidden-catalog":  model.ModelSquareHidden,
-					"square-bare":            model.ModelSquareVisible,
-					"square-disabled":        model.ModelSquareUnavailable,
+					"square-bare":            model.ModelSquareHidden,
+					"square-disabled":        model.ModelSquareHidden,
 					"square-partial-":        model.ModelSquarePartial,
 					"square-partial-hidden":  model.ModelSquareHidden,
 					"square-partial-on":      model.ModelSquareVisible,
@@ -615,12 +617,12 @@ export function parseTaskResult() { return {}; }
 						query   string
 						names   []string
 					}{
-						{"list", GetAllModelsMeta, "?include_channel_models=true&square_state=visible", []string{"square-visible", "square-bare", "square-partial-on", "square-hidden-override", "square-contains-ending", "square-contains"}},
+						{"list", GetAllModelsMeta, "?include_channel_models=true&square_state=visible", []string{"square-visible", "square-partial-on", "square-hidden-override", "square-contains-ending", "square-contains"}},
 						{"metadata_only", SearchModelsMeta, "?keyword=square-&square_state=visible", []string{"square-visible", "square-hidden-override", "square-contains"}},
 						{"keyword", SearchModelsMeta, "?include_channel_models=true&keyword=square-partial&square_state=hidden", []string{"square-partial-hidden"}},
 						{"policy", SearchModelsMeta, "?include_channel_models=true&keyword=square-&square_state=partial&status=disabled", []string{"square-hidden-"}},
 						{"vendor_and_sync", SearchModelsMeta, "?include_channel_models=true&keyword=square-&square_state=partial&vendor=0&sync_official=no", []string{"square-hidden-", "square-partial-"}},
-						{"no_matches", SearchModelsMeta, "?include_channel_models=true&keyword=square-bare&square_state=hidden", []string{}},
+						{"new_channel_model_hidden", SearchModelsMeta, "?include_channel_models=true&keyword=square-bare&square_state=hidden", []string{"square-bare"}},
 					} {
 						t.Run(test.name, func(t *testing.T) {
 							var result filteredResponse
@@ -660,6 +662,23 @@ export function parseTaskResult() { return {}; }
 				}, "GET", "/api/models/"+strconv.Itoa(records[4].Id), nil, &detail)
 				require.True(t, detail.Success)
 				assert.Equal(t, model.ModelSquarePartial, detail.Data.SquareState)
+
+				t.Run("explicit_metadata_publishes_discovered_model", func(t *testing.T) {
+					bare := model.Model{ModelName: "square-bare", Status: 1, NameRule: model.NameRuleExact}
+					require.NoError(t, bare.Insert())
+					ids = append(ids, bare.Id)
+					model.RefreshPricing()
+					pricing, err := model.GetModelSquarePricing()
+					require.NoError(t, err)
+					published := false
+					for _, item := range pricing {
+						if item.ModelName == bare.ModelName {
+							published = true
+							break
+						}
+					}
+					assert.True(t, published)
+				})
 			})
 			t.Run("channel_model_listing", func(t *testing.T) {
 				exact := model.Model{ModelName: "listing-exact", Status: 1, SyncOfficial: 1}

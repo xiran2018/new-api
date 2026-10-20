@@ -90,6 +90,28 @@ func GetPricing() []Pricing {
 	return pricingMap
 }
 
+// GetModelSquarePricing returns only models explicitly enabled by exact or
+// pattern metadata. The full pricing cache remains available to internal
+// billing and API-model discovery paths.
+func GetModelSquarePricing() ([]Pricing, error) {
+	pricing := GetPricing()
+	names := make([]string, 0, len(pricing))
+	for _, item := range pricing {
+		names = append(names, item.ModelName)
+	}
+	visible, err := GetModelSquareVisibility(names)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]Pricing, 0, len(pricing))
+	for _, item := range pricing {
+		if visible[item.ModelName] {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
+}
+
 // IsExactModelAPIEnabled requires an exact metadata record and explicit enablement.
 func IsExactModelAPIEnabled(modelName string) bool {
 	GetPricing()
